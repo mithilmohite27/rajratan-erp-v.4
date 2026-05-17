@@ -1,0 +1,510 @@
+// ─────────────────────────────────────────────
+//  sheets.js  —  Complete Google Sheets data layer
+//  New tabs: Production_Variants, Opening_Stock
+//  Updated: CRM_Log (Color + Status), QC_Log (Color)
+// ─────────────────────────────────────────────
+
+const SHEET_ID = import.meta.env.VITE_SHEET_ID
+
+// ── Core primitives ───────────────────────────
+
+export async function readSheet(accessToken, range) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  // 400 = tab doesn't exist yet — return empty instead of crashing
+  if (res.status === 400) return []
+  if (!res.ok) throw new Error(`Sheets read error: ${res.statusText}`)
+  return (await res.json()).values || []
+}
+
+export async function appendRow(accessToken, range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [values] })
+  })
+  if (!res.ok) throw new Error(`Sheets append error: ${res.statusText}`)
+  return res.json()
+}
+
+export async function appendRows(accessToken, range, rows) {
+  if (!rows.length) return
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: rows })
+  })
+  if (!res.ok) throw new Error(`Sheets bulk append error: ${res.statusText}`)
+  return res.json()
+}
+
+export async function updateRange(accessToken, range, values) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values })
+  })
+  if (!res.ok) throw new Error(`Sheets update error: ${res.statusText}`)
+  return res.json()
+}
+
+// ── Header guard — writes headers once if tab is empty ──
+async function ensureHeaders(accessToken, tab, headers) {
+  const existing = await readSheet(accessToken, `${tab}!A1:A1`)
+  if (!existing.length) {
+    await appendRow(accessToken, `${tab}!A:A`, headers)
+  }
+}
+
+// ── Generic tab loader → array of {header: value} objects ──
+async function loadTab(accessToken, tab) {
+  const rows = await readSheet(accessToken, `${tab}!A:Z`)
+  if (rows.length < 2) return []
+  const [headers, ...data] = rows
+  return data.map(row => {
+    const obj = {}
+    headers.forEach((h, i) => { obj[h] = row[i] ?? '' })
+    return obj
+  })
+}
+
+// ─────────────────────────────────────────────
+//  CONFIG
+// ─────────────────────────────────────────────
+
+export async function loadConfig(accessToken) {
+  const values = await readSheet(accessToken, 'Config!A:B')
+  const config = {}
+  values.forEach(([key, value]) => {
+    if (key) config[key] = isNaN(value) ? value : parseFloat(value)
+  })
+  return config
+}
+
+export async function saveConfig(accessToken, configObj) {
+  const values = Object.entries(configObj).map(([k, v]) => [k, v])
+  await updateRange(accessToken, 'Config!A1', values)
+}
+
+// ─────────────────────────────────────────────
+//  OPENING STOCK  (cold-start baseline)
+//  Tab: Opening_Stock
+//  Schema: Color | Blocks | SetupDate | Notes
+// ─────────────────────────────────────────────
+
+export async function loadOpeningStock(accessToken) {
+  return loadTab(accessToken, 'Opening_Stock')
+}
+
+export async function saveOpeningStock(accessToken, entries) {
+  // entries = [{ color, blocks, setupDate, notes }]
+  // Schema: Date | Type | Color | Blocks | Brass | Notes
+  await ensureHeaders(accessToken, 'Opening_Stock', ['Date', 'Type', 'Color', 'Blocks', 'Brass', 'Notes'])
+  const rows = entries.map(e => {
+    const blocks = parseInt(e.blocks) || 0
+    const brass  = parseFloat((blocks / 285).toFixed(2))
+    return [e.setupDate, 'Opening', e.color, blocks, brass, e.notes || 'Opening balance']
+  })
+  await appendRows(accessToken, 'Opening_Stock!A:A', rows)
+}
+
+const VALID_COLORS = ['Red', 'Yellow', 'Black', 'White']
+
+// Returns a color→blocks map — reads by column INDEX so it works
+// even when header row is missing (common cold-start issue)
+export async function getOpeningStockMap(accessToken) {
+  // Read raw values across all 6 columns: Date,Type,Color,Blocks,Brass,Notes
+  const raw = await readSheet(accessToken, 'Opening_Stock!A:F')
+  if (!raw || raw.length === 0) return {}
+
+  const map = {}
+
+  raw.forEach(row => {
+    // Skip header row
+    if (!row || row[0] === 'Date' || row[0] === 'Color') return
+
+    // Scan every cell in the row to find a valid color and a number near it
+    // This handles any column order automatically
+    let foundColor  = null
+    let foundBlocks = null
+
+    row.forEach((cell, idx) => {
+      const val = (cell || '').toString().trim()
+      if (VALID_COLORS.includes(val)) {
+        foundColor = val
+        // Look at next cell for blocks, or previous cell
+        const next = (row[idx + 1] || '').toString().trim()
+        const prev = (row[idx - 1] || '').toString().trim()
+        if (!isNaN(next) && parseFloat(next) > 0) foundBlocks = parseFloat(next)
+        else if (!isNaN(prev) && parseFloat(prev) > 0) foundBlocks = parseFloat(prev)
+      }
+    })
+
+    // Fallback: find color in col C (index 2), blocks in col D (index 3)
+    // Schema: Date | Type | Color | Blocks | Brass | Notes
+    if (!foundColor) {
+      const colC = (row[2] || '').toString().trim()
+      const colD = (row[3] || '').toString().trim()
+      if (VALID_COLORS.includes(colC) && !isNaN(colD)) {
+        foundColor  = colC
+        foundBlocks = parseFloat(colD) || 0
+      }
+    }
+
+    if (foundColor && foundBlocks > 0) {
+      map[foundColor] = (map[foundColor] || 0) + foundBlocks
+    }
+  })
+
+  return map  // { Red: 46958, Yellow: 46958, ... }
+}
+
+// ─────────────────────────────────────────────
+//  PRODUCTION (main daily totals log)
+//  Tab: Production_Log  — unchanged schema
+// ─────────────────────────────────────────────
+
+export async function loadProduction(accessToken) {
+  return loadTab(accessToken, 'Production_Log')
+}
+
+export async function saveProductionEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'Production_Log', [
+    'Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement',
+    'Greet_kg', 'Powder_kg', 'Chemical_L', 'YellowKG', 'RedKG',
+    'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses',
+    'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost',
+    'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost'
+  ])
+  await appendRow(accessToken, 'Production_Log!A:A', [
+    entry.date, entry.blocks, entry.mortarCement, entry.colorCement,
+    entry.totalCement, entry.greet, entry.powder, entry.chemical,
+    entry.yellowKG, entry.redKG, entry.yellowFinal, entry.redFinal,
+    entry.reti, entry.plastic, entry.misc,
+    entry.cementCost, entry.greetCost, entry.powderCost, entry.chemicalCost,
+    entry.colorCost, entry.plasticCost, entry.retiCost, entry.labourCost,
+    entry.totalDailyCost
+  ])
+}
+
+// ─────────────────────────────────────────────
+//  PRODUCTION VARIANTS  (per-color daily inflows)
+//  Tab: Production_Variants  ← NEW
+//  Schema: Date | Color | Blocks | Brass | BatchID | Notes
+//
+//  Written atomically alongside Production_Log save.
+//  This is the authoritative source for inventory inflow.
+// ─────────────────────────────────────────────
+
+export async function loadProductionVariants(accessToken) {
+  return loadTab(accessToken, 'Production_Variants')
+}
+
+export async function saveProductionVariants(accessToken, variants) {
+  // variants = [{ date, color, blocks, brass, batchId, notes }]
+  await ensureHeaders(accessToken, 'Production_Variants', [
+    'Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes'
+  ])
+  const rows = variants.map(v => [
+    v.date, v.color, parseInt(v.blocks) || 0,
+    parseFloat(v.brass) || 0, v.batchId || v.date, v.notes || ''
+  ])
+  await appendRows(accessToken, 'Production_Variants!A:A', rows)
+}
+
+// ─────────────────────────────────────────────
+//  CRM
+//  Tab: CRM_Log
+//  Schema: Date | ClientName | Location | OrderBrass | OrderBlocks |
+//          Rate | DispatchBrass | DispatchBlocks | Color | Status |
+//          Transport | Transporter | FreightCharge | Notes
+//
+//  KEY CHANGE: Color + Status columns added.
+//  Status: 'Order' | 'Dispatched'
+//  Only 'Dispatched' rows drive inventory deduction.
+// ─────────────────────────────────────────────
+
+export async function loadCRM(accessToken) {
+  return loadTab(accessToken, 'CRM_Log')
+}
+
+export async function saveCRMEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'CRM_Log', [
+    'Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks',
+    'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status',
+    'Transport', 'Transporter', 'FreightCharge', 'Notes'
+  ])
+  await appendRow(accessToken, 'CRM_Log!A:A', [
+    entry.date,
+    entry.clientName,
+    entry.location    || '',
+    entry.orderBrass  || 0,
+    entry.orderBlocks || 0,
+    entry.rate        || 0,
+    entry.dispatchBrass   || 0,
+    entry.dispatchBlocks  || 0,
+    entry.color       || '',
+    entry.status      || 'Order',
+    entry.transport   || '',
+    entry.transporter || '',
+    entry.freightCharge || 0,
+    entry.notes       || '',
+  ])
+}
+
+// Returns only dispatched rows — used by inventory engine
+// Backward compatible: if Status column missing (old schema), use DispatchBrass > 0
+export async function loadCRMDispatches(accessToken) {
+  const all = await loadCRM(accessToken)
+  return all.filter(r => {
+    // New schema: Status column exists
+    if (r.Status) return r.Status === 'Dispatched'
+    // Old schema fallback: any row with DispatchBrass > 0 counts as dispatched
+    return parseFloat(r.DispatchBrass) > 0
+  })
+}
+
+// ─────────────────────────────────────────────
+//  QC / WASTAGE
+//  Tab: QC_Log
+//  Schema: Date | Color | BrokenBlocks | CostPerBlock | TotalLoss | Notes
+//  KEY CHANGE: Color column added for per-color deduction.
+// ─────────────────────────────────────────────
+
+export async function loadQC(accessToken) {
+  return loadTab(accessToken, 'QC_Log')
+}
+
+export async function saveQCEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'QC_Log', [
+    'Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'
+  ])
+  await appendRow(accessToken, 'QC_Log!A:A', [
+    entry.date,
+    entry.color       || 'All',
+    entry.brokenBlocks,
+    entry.costPerBlock,
+    entry.totalLoss,
+    entry.notes       || '',
+  ])
+}
+
+// ─────────────────────────────────────────────
+//  CASH FLOW
+// ─────────────────────────────────────────────
+
+export async function loadCashFlow(accessToken) { return loadTab(accessToken, 'CashFlow_Log') }
+
+export async function saveCashFlowEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'CashFlow_Log', ['Date', 'Type', 'Source', 'Amount', 'Description', 'VendorName'])
+  await appendRow(accessToken, 'CashFlow_Log!A:A', [
+    entry.date, entry.type, entry.source, entry.amount, entry.description, entry.vendorName || ''
+  ])
+}
+
+// ─────────────────────────────────────────────
+//  VENDOR LEDGER
+// ─────────────────────────────────────────────
+
+export async function loadVendors(accessToken) { return loadTab(accessToken, 'Vendor_Ledger') }
+
+export async function saveVendorEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'Vendor_Ledger', ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await appendRow(accessToken, 'Vendor_Ledger!A:A', [
+    entry.date, entry.vendorName, entry.material, entry.type, entry.amount, entry.notes || ''
+  ])
+}
+
+// ─────────────────────────────────────────────
+//  PAYROLL
+// ─────────────────────────────────────────────
+
+export async function loadPayroll(accessToken) { return loadTab(accessToken, 'Payroll_Log') }
+
+export async function savePayrollEntry(accessToken, entry) {
+  await ensureHeaders(accessToken, 'Payroll_Log', ['Date', 'WorkerName', 'Type', 'Blocks', 'WageRate', 'Amount', 'Notes'])
+  await appendRow(accessToken, 'Payroll_Log!A:A', [
+    entry.date, entry.workerName, entry.type,
+    entry.blocks || 0, entry.wageRate || 0, entry.amount, entry.notes || ''
+  ])
+}
+
+// ─────────────────────────────────────────────
+//  INVENTORY ENGINE  (computed — never stored)
+//
+//  Formula:  Current Stock =
+//    Opening Stock
+//    + SUM(Production_Variants.Blocks where Color=X)
+//    - SUM(CRM_Log.DispatchBlocks where Color=X AND Status='Dispatched')
+//    - SUM(QC_Log.BrokenBlocks where Color=X)
+//
+//  This function loads all source tabs in parallel
+//  and returns a complete per-color stock map.
+// ─────────────────────────────────────────────
+
+export async function computeInventory(accessToken) {
+  const COLORS = ['Red', 'Yellow', 'Black', 'White']
+
+  // Each source is fault-tolerant — missing tab = empty array, never crashes
+  const [opening, variants, dispatches, qc] = await Promise.all([
+    getOpeningStockMap(accessToken).catch(() => ({})),
+    loadProductionVariants(accessToken).catch(() => []),
+    loadCRMDispatches(accessToken).catch(() => []),
+    loadQC(accessToken).catch(() => []),
+  ])
+
+  const result = {}
+  COLORS.forEach(color => {
+    const openingQty = opening[color] || 0
+
+    const produced = variants
+      .filter(r => r.Color === color)
+      .reduce((s, r) => s + (parseFloat(r.Blocks) || 0), 0)
+
+    // Only deduct dispatches that have a specific color tagged.
+    // Rows with blank Color (historical bulk imports) are excluded from
+    // inventory deduction — they exist for records/P&L only, not stock tracking.
+    const sold = dispatches
+      .filter(r => r.Color === color)
+      .reduce((s, r) => s + (parseFloat(r.DispatchBlocks) || 0), 0)
+
+    const broken = qc
+      .filter(r => r.Color === color || r.Color === 'All')
+      .reduce((s, r) => {
+        if (r.Color === 'All') return s + (parseFloat(r.BrokenBlocks) || 0) / COLORS.length
+        return s + (parseFloat(r.BrokenBlocks) || 0)
+      }, 0)
+
+    result[color] = {
+      opening:  openingQty,
+      produced: Math.round(produced),
+      sold:     Math.round(sold),
+      broken:   Math.round(broken),
+      stock:    Math.max(0, openingQty + produced - sold - Math.round(broken)),
+    }
+  })
+
+  return result
+}
+
+// ─────────────────────────────────────────────
+//  BULK IMPORT — CSV ingestion pipeline
+//  Supports: Production_Variants, CRM_Log
+// ─────────────────────────────────────────────
+
+export async function bulkImportProductionVariants(accessToken, rows) {
+  // rows = [{ date, color, blocks }]
+  await ensureHeaders(accessToken, 'Production_Variants', [
+    'Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes'
+  ])
+  const formatted = rows.map(r => {
+    const blocks = parseInt(r.blocks) || 0
+    return [r.date, r.color, blocks, parseFloat((blocks / 285).toFixed(2)), r.date, r.notes || 'Bulk Import']
+  })
+  await appendRows(accessToken, 'Production_Variants!A:A', formatted)
+  return formatted.length
+}
+
+export async function bulkImportCRM(accessToken, rows) {
+  // rows = [{ date, clientName, location, orderBrass, rate, color, notes }]
+  // Bulk imports are always saved as Status='Dispatched' with DispatchBrass=OrderBrass
+  // Reason: historical data — already delivered, should not show as pending dispatch
+  // Color is intentionally left blank for past data — no inventory deduction without color
+  await ensureHeaders(accessToken, 'CRM_Log', [
+    'Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks',
+    'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status',
+    'Transport', 'Transporter', 'FreightCharge', 'Notes'
+  ])
+  const formatted = rows.map(r => {
+    const brass  = parseFloat(r.orderBrass) || 0
+    const blocks = Math.round(brass * 285)
+    return [
+      r.date,
+      r.clientName,
+      r.location  || '',
+      brass,          // OrderBrass
+      blocks,         // OrderBlocks
+      r.rate      || 0,
+      brass,          // DispatchBrass = OrderBrass (already delivered)
+      blocks,         // DispatchBlocks = OrderBlocks
+      r.color     || '',  // blank for past data — no inventory deduction
+      'Dispatched',   // ← KEY: marks as already done, no dispatch button shown
+      'Bulk Import',  // Transport
+      '',             // Transporter
+      0,              // FreightCharge
+      r.notes     || ''
+    ]
+  })
+  await appendRows(accessToken, 'CRM_Log!A:A', formatted)
+  return formatted.length
+}
+
+// ─────────────────────────────────────────────
+//  SEED — populate static data on cold start
+// ─────────────────────────────────────────────
+
+export async function seedStaticData(accessToken, today) {
+  // Seed Config defaults if empty
+  const existingConfig = await readSheet(accessToken, 'Config!A1:A1')
+  if (!existingConfig.length) {
+    const defaults = [
+      ['ghamela_g', 17], ['weight_g', 17],
+      ['ghamela_p', 12], ['weight_p', 18],
+      ['litre_m', 1], ['ml_c', 0.5],
+      ['yellowRatio', 0.5], ['redRatio', 0.5],
+      ['reti_multiplier', 3], ['plastic_ml', 180],
+      ['cementRate', 340], ['greetRate', 600],
+      ['powderRate', 450], ['chemicalRate', 25],
+      ['colorRate', 135], ['plasticRate', 100],
+      ['retiRate', 30], ['labourRate', 1.80],
+      ['miscDefault', 1000],
+    ]
+    await updateRange(accessToken, 'Config!A1', defaults)
+  }
+
+  // Ensure all tab headers exist
+  await ensureHeaders(accessToken, 'Opening_Stock',        ['Color', 'Blocks', 'SetupDate', 'Notes'])
+  await ensureHeaders(accessToken, 'Production_Log',       ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_kg', 'Powder_kg', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost'])
+  await ensureHeaders(accessToken, 'Production_Variants',  ['Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes'])
+  await ensureHeaders(accessToken, 'CRM_Log',              ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes'])
+  await ensureHeaders(accessToken, 'QC_Log',               ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'])
+  await ensureHeaders(accessToken, 'CashFlow_Log',         ['Date', 'Type', 'Source', 'Amount', 'Description', 'VendorName'])
+  await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Payroll_Log',          ['Date', 'WorkerName', 'Type', 'Blocks', 'WageRate', 'Amount', 'Notes'])
+
+  return true
+}
+
+// ─────────────────────────────────────────────
+//  DEBUG — returns raw source counts for diagnosis
+// ─────────────────────────────────────────────
+export async function computeInventoryDebug(accessToken) {
+  // Read opening stock RAW (by index) so debug always shows truth
+  const [openingRaw, variants, allCRM, qc, openingMap] = await Promise.all([
+    readSheet(accessToken, 'Opening_Stock!A:D').catch(() => []),
+    loadProductionVariants(accessToken).catch(() => []),
+    loadCRM(accessToken).catch(() => []),
+    loadQC(accessToken).catch(() => []),
+    getOpeningStockMap(accessToken).catch(() => ({})),
+  ])
+
+  const dispatched = allCRM.filter(r => r.Status === 'Dispatched' || (!r.Status && parseFloat(r.DispatchBrass) > 0))
+
+  return {
+    openingRaw,           // raw rows from sheet for diagnosis
+    openingMap,           // parsed color→blocks map
+    variantRows:  variants,
+    dispatchedRows: dispatched,
+    qcRows: qc,
+    summary: {
+      openingRawCount:  openingRaw.length,
+      openingMapColors: Object.keys(openingMap),
+      variantsCount:    variants.length,
+      dispatchCount:    dispatched.length,
+      qcCount:          qc.length,
+    }
+  }
+}
