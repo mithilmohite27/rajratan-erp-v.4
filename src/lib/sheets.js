@@ -275,7 +275,29 @@ export async function loadCRMDispatches(accessToken) {
 // ─────────────────────────────────────────────
 
 export async function loadQC(accessToken) {
-  return loadTab(accessToken, 'QC_Log')
+  // Read raw to handle any column order
+  const raw = await readSheet(accessToken, 'QC_Log!A:F')
+  if (!raw || raw.length < 2) return []
+  const headers = raw[0].map(h => (h || '').toString().trim())
+
+  // Find column indexes dynamically
+  const idx = {
+    date:         headers.findIndex(h => h.toLowerCase().includes('date')),
+    color:        headers.findIndex(h => h.toLowerCase().includes('color')),
+    brokenBlocks: headers.findIndex(h => h.toLowerCase().includes('broken')),
+    costPerBlock: headers.findIndex(h => h.toLowerCase().includes('cost')),
+    totalLoss:    headers.findIndex(h => h.toLowerCase().includes('loss')),
+    notes:        headers.findIndex(h => h.toLowerCase().includes('notes')),
+  }
+
+  return raw.slice(1).map(row => ({
+    Date:         row[idx.date]         || '',
+    Color:        row[idx.color]        || '',
+    BrokenBlocks: row[idx.brokenBlocks] || '0',
+    CostPerBlock: row[idx.costPerBlock] || '0',
+    TotalLoss:    row[idx.totalLoss]    || '0',
+    Notes:        row[idx.notes]        || '',
+  })).filter(r => r.Date || r.BrokenBlocks)
 }
 
 export async function saveQCEntry(accessToken, entry) {
