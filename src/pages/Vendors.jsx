@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadVendors, saveVendorEntry } from '../lib/sheets.js'
+import { loadVendors, saveVendorEntry, saveCashFlowEntry } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
 
 const MATERIALS = ['Cement', 'Greet', 'Powder', 'Chemical', 'Color', 'Plastic', 'Reti', 'Other']
@@ -18,7 +18,7 @@ export default function Vendors() {
     date: today(), vendorName: '', material: 'Cement', amount: '', notes: ''
   })
   const [payForm, setPayForm] = useState({
-    date: today(), vendorName: '', amount: '', notes: ''
+    date: today(), vendorName: '', amount: '', source: 'Factory', notes: ''
   })
 
   const fetchData = async () => {
@@ -57,9 +57,19 @@ export default function Vendors() {
     if (!payForm.vendorName || !payForm.amount) { setError('Vendor name and amount required.'); return }
     setSaving(true); setError('')
     try {
+      // 1. Save to Vendor_Ledger
       await saveVendorEntry(accessToken, { ...payForm, material: '', type: 'Payment', amount: parseFloat(payForm.amount) })
+      // 2. Sync to CashFlow — deducts from selected account
+      await saveCashFlowEntry(accessToken, {
+        date:        payForm.date,
+        type:        'Out',
+        source:      payForm.source,
+        amount:      parseFloat(payForm.amount),
+        description: `Vendor Payment — ${payForm.vendorName}`,
+        vendorName:  payForm.vendorName,
+      })
       setRefresh(v => v + 1)
-      setPayForm({ date: today(), vendorName: '', amount: '', notes: '' })
+      setPayForm({ date: today(), vendorName: '', amount: '', source: 'Factory', notes: '' })
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -203,6 +213,26 @@ export default function Vendors() {
               onChange={e => setPayForm(p=>({...p,amount:e.target.value}))}
               className="w-full text-2xl font-bold text-gray-800 outline-none bg-transparent" />
           </div>
+
+          {/* Account source — syncs to CashFlow */}
+          <div className="bg-white border border-gray-200 rounded-xl p-3">
+            <label className="text-xs text-gray-500 block mb-2">🏦 Pay From Which Account?</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[['Factory','🏭 Factory Account'],['External','💼 External / Owner']].map(([k,l]) => (
+                <button key={k} onClick={() => setPayForm(p=>({...p,source:k}))}
+                  className={`py-3 rounded-xl text-xs font-bold transition-all
+                    ${payForm.source===k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-gray-50 border border-gray-200 text-gray-600'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {payForm.amount > 0 && (
+              <p className="text-xs text-orange-600 mt-2 font-semibold">
+                {formatINR(payForm.amount)} will be deducted from <strong>{payForm.source}</strong> account in Cash Flow
+              </p>
+            )}
+          </div>
+
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">📝 Notes</label>
             <input type="text" value={payForm.notes} placeholder="Payment reference..."
@@ -210,8 +240,8 @@ export default function Vendors() {
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
           </div>
           <button onClick={handlePayment} disabled={saving}
-            className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-xl text-lg">
-            {saving ? '⏳ Saving...' : '✅ Record Payment'}
+            className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-green-200">
+            {saving ? '⏳ Saving...' : '✅ Record Payment + Deduct from Cash Flow'}
           </button>
         </>}
 
