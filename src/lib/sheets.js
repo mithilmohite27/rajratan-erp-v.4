@@ -301,16 +301,20 @@ export async function loadQC(accessToken) {
 }
 
 export async function saveQCEntry(accessToken, entry) {
-  await ensureHeaders(accessToken, 'QC_Log', [
-    'Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'
-  ])
+  // Always enforce correct header order before saving
+  const existing = await readSheet(accessToken, 'QC_Log!A1:F1')
+  const firstRow = (existing[0] || []).map(h => (h||'').trim())
+  // If Color column missing, overwrite header row with correct schema
+  if (!firstRow.includes('Color')) {
+    await updateRange(accessToken, 'QC_Log!A1', [['Date','Color','BrokenBlocks','CostPerBlock','TotalLoss','Notes']])
+  }
   await appendRow(accessToken, 'QC_Log!A:A', [
     entry.date,
-    entry.color       || 'All',
+    entry.color        || 'All',
     entry.brokenBlocks,
     entry.costPerBlock,
     entry.totalLoss,
-    entry.notes       || '',
+    entry.notes        || '',
   ])
 }
 
