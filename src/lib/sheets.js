@@ -371,10 +371,15 @@ export async function computeInventory(accessToken) {
       .filter(r => r.Color === color)
       .reduce((s, r) => s + (parseFloat(r.DispatchBlocks) || 0), 0)
 
+    // Match exact color OR any "all colors" variant ('All', 'All Colors', blank)
+    const isAllColors = r => {
+      const c = (r.Color || '').trim()
+      return c === 'All' || c === 'All Colors' || c === '' || c === 'all'
+    }
     const broken = qc
-      .filter(r => r.Color === color || r.Color === 'All')
+      .filter(r => r.Color === color || isAllColors(r))
       .reduce((s, r) => {
-        if (r.Color === 'All') return s + (parseFloat(r.BrokenBlocks) || 0) / COLORS.length
+        if (isAllColors(r)) return s + (parseFloat(r.BrokenBlocks) || 0) / COLORS.length
         return s + (parseFloat(r.BrokenBlocks) || 0)
       }, 0)
 
