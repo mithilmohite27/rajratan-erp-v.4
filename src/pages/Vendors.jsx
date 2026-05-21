@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { loadVendors, saveVendorEntry, saveCashFlowEntry } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
+import { MATERIAL_LIST } from '../lib/materials.js'
 
 const MATERIALS = ['Cement', 'Greet', 'Powder', 'Chemical', 'Color', 'Plastic', 'Reti', 'Other']
+const UNIT_BY_MATERIAL = Object.fromEntries(MATERIAL_LIST.map(m => [m.id, m.unit]))
 
 export default function Vendors() {
   const { accessToken } = useApp()
@@ -15,7 +17,7 @@ export default function Vendors() {
   const [error,   setError]   = useState('')
 
   const [invoiceForm, setInvoiceForm] = useState({
-    date: today(), vendorName: '', material: 'Cement', amount: '', notes: ''
+    date: today(), vendorName: '', material: 'Cement', quantity: '', unit: 'bags', amount: '', notes: ''
   })
   const [payForm, setPayForm] = useState({
     date: today(), vendorName: '', amount: '', source: 'Factory', notes: ''
@@ -43,14 +45,30 @@ export default function Vendors() {
 
   const handleInvoice = async () => {
     if (!invoiceForm.vendorName || !invoiceForm.amount) { setError('Vendor name and amount required.'); return }
+    const qty = parseFloat(invoiceForm.quantity)
+    if (!qty || qty <= 0) { setError('Quantity required — material stock increases from invoice qty.'); return }
     setSaving(true); setError('')
     try {
-      await saveVendorEntry(accessToken, { ...invoiceForm, type: 'Invoice', amount: parseFloat(invoiceForm.amount) })
+      await saveVendorEntry(accessToken, {
+        ...invoiceForm,
+        type: 'Invoice',
+        quantity: qty,
+        unit: invoiceForm.unit || UNIT_BY_MATERIAL[invoiceForm.material] || '',
+        amount: parseFloat(invoiceForm.amount),
+      })
       setRefresh(v => v + 1)
-      setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', amount: '', notes: '' })
+      setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', quantity: '', unit: 'bags', amount: '', notes: '' })
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
+  }
+
+  const selectMaterial = (m) => {
+    setInvoiceForm(p => ({
+      ...p,
+      material: m,
+      unit: UNIT_BY_MATERIAL[m] || p.unit,
+    }))
   }
 
   const handlePayment = async () => {
@@ -79,7 +97,7 @@ export default function Vendors() {
     <div className="max-w-lg mx-auto">
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
         <h1 className="text-lg font-bold text-gray-800">🧾 Vendor Ledger</h1>
-        <p className="text-xs text-gray-400">Supplier accounts, invoices & outstanding balances</p>
+        <p className="text-xs text-gray-400">Invoices with quantity auto-update Material Stock</p>
       </div>
       <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+4rem)] z-10">
         {[['ledger','Ledger'],['invoice','+ Invoice'],['payment','Pay Vendor'],['history','History']].map(([k,l]) => (
@@ -160,13 +178,25 @@ export default function Vendors() {
             <label className="text-xs text-gray-500 block mb-2">🧱 Material</label>
             <div className="flex flex-wrap gap-2">
               {MATERIALS.map(m => (
-                <button key={m} onClick={() => setInvoiceForm(p=>({...p,material:m}))}
+                <button key={m} onClick={() => selectMaterial(m)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold ${invoiceForm.material===m?'bg-orange-500 text-white':'bg-gray-100 text-gray-600'}`}>
                   {m}
                 </button>
               ))}
             </div>
           </div>
+          {invoiceForm.material !== 'Other' && (
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
+              <label className="text-xs text-teal-700 font-semibold block mb-1">📦 Quantity received (adds to Material Stock)</label>
+              <div className="flex items-center gap-2">
+                <input type="number" inputMode="decimal" value={invoiceForm.quantity} placeholder="0"
+                  onChange={e => setInvoiceForm(p => ({ ...p, quantity: e.target.value }))}
+                  className="flex-1 text-2xl font-bold text-gray-800 outline-none bg-transparent" />
+                <span className="text-sm font-bold text-teal-600 shrink-0">{invoiceForm.unit}</span>
+              </div>
+              <p className="text-xs text-teal-600 mt-1">Required for automatic stock increase in Stock → Materials</p>
+            </div>
+          )}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">💰 Invoice Amount (₹)</label>
             <input type="number" inputMode="decimal" value={invoiceForm.amount} placeholder="0"
@@ -256,9 +286,10 @@ export default function Vendors() {
                   {r.Type==='Payment'?'Paid':'Invoice'} {formatINR(r.Amount)}
                 </span>
               </div>
-              <div className="text-xs text-gray-400 mt-1 flex gap-3">
+              <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
                 <span>{r.Date}</span>
                 {r.Material && <span>{r.Material}</span>}
+                {r.Quantity && <span className="text-teal-600 font-semibold">+{r.Quantity} {r.Unit || ''}</span>}
                 {r.Notes && <span>{r.Notes}</span>}
               </div>
             </div>

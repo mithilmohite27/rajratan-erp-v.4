@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useApp } from '../App.jsx'
-import { saveOpeningStock, seedStaticData, bulkImportProductionVariants, bulkImportCRM } from '../lib/sheets.js'
+import { saveOpeningStock, saveOpeningMaterialStock, seedStaticData, bulkImportProductionVariants, bulkImportCRM } from '../lib/sheets.js'
 import { blocksToBrass, today } from '../lib/formulas.js'
+import { MATERIAL_LIST } from '../lib/materials.js'
 
 const COLORS = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI  = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
@@ -47,6 +48,9 @@ export default function Setup() {
   const [stockEntries, setStockEntries] = useState(COLORS.reduce((a, c) => ({ ...a, [c]: '' }), {}))
   const [stockSaving,  setStockSaving]  = useState(false)
   const [stockSaved,   setStockSaved]   = useState(false)
+  const [matEntries,   setMatEntries]   = useState(MATERIAL_LIST.reduce((a, m) => ({ ...a, [m.id]: '' }), {}))
+  const [matSaving,    setMatSaving]    = useState(false)
+  const [matSaved,     setMatSaved]     = useState(false)
 
   // Step 3 — Bulk import
   const [importType,    setImportType]    = useState('production') // 'production' | 'crm'
@@ -90,6 +94,24 @@ export default function Setup() {
       setActiveStep(3)
     } catch (e) { setError('Save failed: ' + e.message) }
     setStockSaving(false)
+  }
+
+  const handleOpeningMaterial = async () => {
+    const toSave = MATERIAL_LIST.filter(m => parseFloat(matEntries[m.id]) > 0).map(m => ({
+      material: m.id,
+      quantity: parseFloat(matEntries[m.id]),
+      unit: m.unit,
+      setupDate: stockDate,
+      notes: 'Opening balance — cold start',
+    }))
+    if (!toSave.length) { setError('Enter opening qty for at least one material (or skip).'); return }
+    setMatSaving(true); setError('')
+    try {
+      await saveOpeningMaterialStock(accessToken, toSave)
+      setMatSaved(true)
+      flash(`✅ Material opening stock saved for ${toSave.length} material(s)!`)
+    } catch (e) { setError('Material save failed: ' + e.message) }
+    setMatSaving(false)
   }
 
   // ── Step 3: CSV parse ─────────────────────
@@ -183,7 +205,7 @@ export default function Setup() {
               </p>
               <div className="bg-gray-50 rounded-xl p-3 font-mono text-xs text-gray-600 space-y-1 mb-4">
                 <p>✓ Config — default rates &amp; multipliers</p>
-                <p>✓ Opening_Stock — baseline tab</p>
+                <p>✓ Opening_Stock + Opening_Material_Stock</p>
                 <p>✓ Production_Log + Production_Variants</p>
                 <p>✓ CRM_Log, QC_Log, CashFlow_Log</p>
                 <p>✓ Vendor_Ledger, Payroll_Log</p>
@@ -260,7 +282,34 @@ export default function Setup() {
               {stockSaving ? '⏳ Saving to Google Sheets...' : '💾 Save Opening Stock'}
             </button>
 
-            {stockSaved && (
+            <div className="h-px bg-gray-100" />
+
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
+              <p className="text-xs font-bold text-teal-700 mb-0.5">Raw Material Opening Stock (optional)</p>
+              <p className="text-xs text-gray-500">
+                Current on-hand qty per material. Future stock = <strong>Opening + Vendor purchases − Production use</strong>
+              </p>
+            </div>
+            <div className="space-y-2">
+              {MATERIAL_LIST.map(meta => (
+                <div key={meta.id} className={`flex items-center gap-3 rounded-xl p-3 border
+                  ${matEntries[meta.id] > 0 ? meta.bg : 'bg-white border-gray-200'}`}>
+                  <span>{meta.emoji}</span>
+                  <span className={`text-sm font-bold w-20 ${matEntries[meta.id] > 0 ? meta.color : 'text-gray-500'}`}>{meta.label}</span>
+                  <input type="number" inputMode="decimal" value={matEntries[meta.id] || ''} placeholder="0"
+                    onChange={e => setMatEntries(p => ({ ...p, [meta.id]: e.target.value }))}
+                    className="flex-1 text-lg font-bold outline-none bg-transparent text-gray-800" />
+                  <span className="text-xs text-gray-400 shrink-0">{meta.unit}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleOpeningMaterial} disabled={matSaving}
+              className="w-full bg-teal-600 disabled:bg-teal-300 text-white font-bold py-3 rounded-xl text-sm">
+              {matSaving ? '⏳ Saving...' : '💾 Save Material Opening Stock'}
+            </button>
+            {matSaved && <p className="text-xs text-center text-teal-600 font-semibold">✓ Material baseline saved</p>}
+
+            {(stockSaved || matSaved) && (
               <button onClick={() => setActiveStep(3)} className="w-full border border-orange-300 text-orange-500 font-bold py-3 rounded-xl">
                 Next → Bulk Import (optional)
               </button>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../App.jsx'
 import { computeInventory, computeInventoryDebug, saveOpeningStock } from '../lib/sheets.js'
 import { blocksToBrass, formatNum, today } from '../lib/formulas.js'
+import MaterialStock from './MaterialStock.jsx'
 
 const COLORS    = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI     = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
@@ -103,6 +104,7 @@ function ColorCard({ color, data }) {
 export default function Inventory() {
   const { accessToken } = useApp()
 
+  const [stockMode,   setStockMode]   = useState('blocks') // 'blocks' | 'materials'
   const [tab,         setTab]         = useState('dashboard')
   const [inventory,   setInventory]   = useState(null)
   const [debugData,   setDebugData]   = useState(null)
@@ -184,21 +186,39 @@ export default function Inventory() {
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-lg font-bold text-gray-800">📦 Inventory</h1>
+            <h1 className="text-lg font-bold text-gray-800">📦 Stock</h1>
             <p className="text-xs text-gray-400">
-              Opening + Production − CRM Sales − Wastage
-              {lastRefresh && <span className="ml-1 text-gray-300">· {lastRefresh}</span>}
+              {stockMode === 'blocks'
+                ? 'Block stock — Opening + Production − Sales − Wastage'
+                : 'Material stock — Opening + Purchases − Production use'}
+              {stockMode === 'blocks' && lastRefresh && <span className="ml-1 text-gray-300">· {lastRefresh}</span>}
             </p>
           </div>
-          <button onClick={refresh}
-            className="bg-orange-50 border border-orange-200 text-orange-500 text-xs font-bold px-3 py-1.5 rounded-xl">
-            🔄 Refresh
-          </button>
+          {stockMode === 'blocks' && (
+            <button onClick={refresh}
+              className="bg-orange-50 border border-orange-200 text-orange-500 text-xs font-bold px-3 py-1.5 rounded-xl">
+              🔄 Refresh
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 mt-2">
+          {[['blocks', '🧱 Blocks'], ['materials', '🧪 Materials']].map(([k, l]) => (
+            <button key={k} onClick={() => setStockMode(k)}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all
+                ${stockMode === k ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              {l}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+4rem)] z-10">
+      {stockMode === 'materials' ? (
+        <div className="p-4">
+          <MaterialStock />
+        </div>
+      ) : <>
+      {/* Block stock tabs */}
+      <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+5.5rem)] z-10">
         {[['dashboard','Dashboard'],['colors','By Color'],['formula','Formula'],['debug','🔍 Debug']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 py-2.5 text-xs font-semibold ${tab===k?'text-orange-500 border-b-2 border-orange-500':'text-gray-400'}`}>
@@ -434,6 +454,7 @@ export default function Inventory() {
           </>}
         </>}
       </div>
+      </>}
     </div>
   )
 }

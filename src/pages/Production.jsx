@@ -198,7 +198,7 @@ export default function Production() {
 
       <div className="p-4 space-y-3">
         {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">{error}</div>}
-        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold">✅ Saved to Sheets — Inventory updated automatically!</div>}
+        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold">✅ Saved — Block & material stock update automatically on refresh!</div>}
 
         {/* ── ENTRY TAB ── */}
         {tab === 'entry' && <>
@@ -248,7 +248,7 @@ export default function Production() {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg mt-2">
-            {saving ? '⏳ Saving & Syncing Inventory...' : '💾 Save Production + Update Inventory'}
+            {saving ? '⏳ Saving...' : '💾 Save Production (updates Block + Material stock)'}
           </button>
         </>}
 
