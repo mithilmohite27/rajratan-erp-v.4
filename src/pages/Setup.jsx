@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../App.jsx'
 import { saveOpeningStock, saveOpeningMaterialStock, seedStaticData, bulkImportProductionVariants, bulkImportCRM } from '../lib/sheets.js'
 import { blocksToBrass, today } from '../lib/formulas.js'
-import { MATERIAL_LIST } from '../lib/materials.js'
+import { MATERIAL_LIST, unitLabel } from '../lib/materials.js'
 
 const COLORS = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI  = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
@@ -299,7 +299,7 @@ export default function Setup() {
                   <input type="number" inputMode="decimal" value={matEntries[meta.id] || ''} placeholder="0"
                     onChange={e => setMatEntries(p => ({ ...p, [meta.id]: e.target.value }))}
                     className="flex-1 text-lg font-bold outline-none bg-transparent text-gray-800" />
-                  <span className="text-xs text-gray-400 shrink-0">{meta.unit}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{unitLabel(meta.unit)}</span>
                 </div>
               ))}
             </div>

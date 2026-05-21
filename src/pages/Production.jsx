@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { calcProduction, calcDailyCost, formatINR, formatNum, today } from '../lib/formulas.js'
+import { unitLabel } from '../lib/materials.js'
 import { saveProductionEntry, saveProductionVariants, loadProduction } from '../lib/sheets.js'
 import { blocksToBrass } from '../lib/formulas.js'
 
@@ -316,12 +317,12 @@ export default function Production() {
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Material Calculations</div>
             <div className="grid grid-cols-2 gap-2">
               {[
-                ['Greet',    formatNum(c.greet/1000, 3),  'tons'],
-                ['Powder',   formatNum(c.powder/1000, 3), 'tons'],
-                ['Chemical', formatNum(c.chemical),    'litres'],
-                ['Reti',     formatNum(c.reti),        'ghamela'],
-                ['Plastic',  formatNum(c.plastic),     'ml'],
-                ['Cement',   formatNum(c.totalCement), 'bags'],
+                ['Greet',    formatNum(c.greet / 1000, 3),  unitLabel('ton')],
+                ['Powder',   formatNum(c.powder / 1000, 3), unitLabel('ton')],
+                ['Chemical', formatNum(c.chemical),         unitLabel('L')],
+                ['Reti',     formatNum(c.reti),             unitLabel('ghamela')],
+                ['Plastic',  formatNum(c.plasticL ?? c.plastic / 1000), unitLabel('L')],
+                ['Cement',   formatNum(c.totalCement),      unitLabel('bags')],
               ].map(([label, value, unit]) => (
                 <div key={label} className="bg-white border border-gray-100 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-0.5">{label}</p>
@@ -333,11 +334,11 @@ export default function Production() {
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
                 <p className="text-xs text-yellow-600">🟡 Yellow Final</p>
-                <p className="text-base font-bold text-gray-800">{formatNum(c.yellowFinal)} <span className="text-xs font-normal text-gray-400">kg</span></p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.yellowFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-xl p-3">
                 <p className="text-xs text-red-600">🔴 Red Final</p>
-                <p className="text-base font-bold text-gray-800">{formatNum(c.redFinal)} <span className="text-xs font-normal text-gray-400">kg</span></p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.redFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
               </div>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { loadVendors, saveVendorEntry, saveCashFlowEntry } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
-import { MATERIAL_LIST } from '../lib/materials.js'
+import { MATERIAL_LIST, unitLabel } from '../lib/materials.js'
 
 const MATERIALS = ['Cement', 'Greet', 'Powder', 'Chemical', 'Color', 'Plastic', 'Reti', 'Other']
 const UNIT_BY_MATERIAL = Object.fromEntries(MATERIAL_LIST.map(m => [m.id, m.unit]))
@@ -192,7 +192,7 @@ export default function Vendors() {
                 <input type="number" inputMode="decimal" value={invoiceForm.quantity} placeholder="0"
                   onChange={e => setInvoiceForm(p => ({ ...p, quantity: e.target.value }))}
                   className="flex-1 text-2xl font-bold text-gray-800 outline-none bg-transparent" />
-                <span className="text-sm font-bold text-teal-600 shrink-0">{invoiceForm.unit}</span>
+                <span className="text-sm font-bold text-teal-600 shrink-0">{unitLabel(invoiceForm.unit)}</span>
               </div>
               <p className="text-xs text-teal-600 mt-1">Required for automatic stock increase in Stock → Materials</p>
             </div>
@@ -289,7 +289,11 @@ export default function Vendors() {
               <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
                 <span>{r.Date}</span>
                 {r.Material && <span>{r.Material}</span>}
-                {r.Quantity && <span className="text-teal-600 font-semibold">+{r.Quantity} {r.Unit || ''}</span>}
+                {r.Quantity && (
+                  <span className="text-teal-600 font-semibold">
+                    +{r.Quantity} {unitLabel(r.Unit || UNIT_BY_MATERIAL[r.Material] || '')}
+                  </span>
+                )}
                 {r.Notes && <span>{r.Notes}</span>}
               </div>
             </div>

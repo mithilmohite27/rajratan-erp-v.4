@@ -6,7 +6,13 @@
 //           Vendor_Ledger (Quantity + Unit)
 // ─────────────────────────────────────────────
 
-import { MATERIAL_IDS, consumptionFromProductionRow, normalizeVendorMaterial } from './materials.js'
+import {
+  MATERIAL_IDS,
+  MATERIAL_UNITS,
+  consumptionFromProductionRow,
+  normalizeVendorMaterial,
+  normalizeToStockUnit,
+} from './materials.js'
 
 const SHEET_ID = import.meta.env.VITE_SHEET_ID
 
@@ -542,7 +548,7 @@ export async function saveOpeningMaterialStock(accessToken, entries) {
     'Opening',
     e.material,
     parseFloat(e.quantity) || 0,
-    e.unit || '',
+    e.unit || (MATERIAL_UNITS[e.material] ?? ''),
     e.notes || 'Opening balance',
   ])
   await appendRows(accessToken, 'Opening_Material_Stock!A:A', rows)
@@ -575,8 +581,10 @@ export async function getOpeningMaterialMap(accessToken) {
         qty = colD
       }
     }
+    const unit = (row[4] || '').toString().trim()
     if (material && qty > 0) {
-      map[material] = (map[material] || 0) + qty
+      const stockQty = normalizeToStockUnit(qty, unit, material)
+      map[material] = (map[material] || 0) + stockQty
     }
   })
   return map
@@ -632,7 +640,10 @@ export async function computeMaterialInventory(accessToken) {
     const openingQty = opening[material] || 0
     const purchased = purchases
       .filter(r => normalizeVendorMaterial(r.Material) === material)
-      .reduce((s, r) => s + (parseFloat(r.Quantity) || 0), 0)
+      .reduce(
+        (s, r) => s + normalizeToStockUnit(r.Quantity, r.Unit, material),
+        0
+      )
     const used = consumed[material] || 0
     const stock = Math.max(0, openingQty + purchased - used)
 

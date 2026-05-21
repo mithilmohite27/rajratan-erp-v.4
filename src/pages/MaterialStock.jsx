@@ -5,7 +5,7 @@ import {
   computeMaterialInventoryDebug,
   saveOpeningMaterialStock,
 } from '../lib/sheets.js'
-import { MATERIAL_LIST, formatMaterialQty } from '../lib/materials.js'
+import { MATERIAL_LIST, formatMaterialQty, unitLabel } from '../lib/materials.js'
 import { today } from '../lib/formulas.js'
 
 function SourceRow({ label, count, ok }) {
@@ -27,7 +27,7 @@ function FormulaRow({ label, value, sign, unit, color }) {
         <span className="text-sm text-gray-600">{label}</span>
       </div>
       <span className="text-sm font-bold text-gray-800">
-        {formatMaterialQty(value, unit)} <span className="text-xs text-gray-400 font-normal">{unit}</span>
+        {formatMaterialQty(value, unit)} <span className="text-xs text-gray-400 font-normal">{unitLabel(unit)}</span>
       </span>
     </div>
   )
@@ -43,7 +43,7 @@ function MaterialCard({ meta, data }) {
       <div className="flex justify-between items-start mb-3">
         <div>
           <p className={`font-bold text-base ${meta.color}`}>{meta.emoji} {meta.label}</p>
-          <p className="text-xs text-gray-400">Available · {meta.unit}</p>
+          <p className="text-xs text-gray-400">Available · {unitLabel(meta.unit)}</p>
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-gray-800">{formatMaterialQty(stock, meta.unit)}</p>
@@ -52,12 +52,12 @@ function MaterialCard({ meta, data }) {
       </div>
 
       <div className="bg-white/70 rounded-xl p-3">
-        <FormulaRow label="Opening Stock"     value={opening}   sign="●" unit={meta.unit} color="text-gray-400" />
-        <FormulaRow label="+ Purchased"       value={purchased} sign="+" unit={meta.unit} color="text-green-500" />
-        <FormulaRow label="− Production Used" value={consumed}  sign="−" unit={meta.unit} color="text-red-400" />
+        <FormulaRow label="Opening Stock"     value={opening}   sign="●" unit={unitLabel(meta.unit)} color="text-gray-400" />
+        <FormulaRow label="+ Purchased"       value={purchased} sign="+" unit={unitLabel(meta.unit)} color="text-green-500" />
+        <FormulaRow label="− Production Used" value={consumed}  sign="−" unit={unitLabel(meta.unit)} color="text-red-400" />
         <div className="flex justify-between pt-2">
           <span className={`text-sm font-bold ${meta.color}`}>= Balance</span>
-          <span className={`text-sm font-bold ${meta.color}`}>{formatMaterialQty(stock, meta.unit)} {meta.unit}</span>
+          <span className={`text-sm font-bold ${meta.color}`}>{formatMaterialQty(stock, meta.unit)} {unitLabel(meta.unit)}</span>
         </div>
       </div>
 
@@ -252,7 +252,7 @@ export default function MaterialStock() {
                     onChange={e => setQuickStock(p => ({ ...p, [meta.id]: e.target.value }))}
                     className="flex-1 text-xl font-bold outline-none bg-transparent text-gray-800"
                   />
-                  <span className="text-xs text-gray-400 shrink-0">{meta.unit}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{unitLabel(meta.unit)}</span>
                 </div>
               ))}
               <button onClick={handleQuickFix} disabled={quickSaving}
@@ -294,13 +294,20 @@ export default function MaterialStock() {
                     <p className="text-xl font-bold text-gray-800 mt-1">
                       {formatMaterialQty(inventory[meta.id].stock, meta.unit)}
                     </p>
-                    <p className="text-xs text-gray-400">{meta.unit} remaining</p>
+                    <p className="text-xs text-gray-400">{unitLabel(meta.unit)} remaining</p>
                     {inventory[meta.id].consumed > 0 && (
                       <p className="text-xs text-red-400 mt-1">
                         −{formatMaterialQty(inventory[meta.id].consumed, meta.unit)} used
                       </p>
                     )}
                   </div>
+                ))}
+              </div>
+
+              <div className="bg-white border border-gray-100 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p className="font-semibold text-gray-700 text-sm">Units</p>
+                {MATERIAL_LIST.map(m => (
+                  <p key={m.id}>{m.emoji} {m.label}: <strong>{unitLabel(m.unit)}</strong></p>
                 ))}
               </div>
 
@@ -337,7 +344,8 @@ export default function MaterialStock() {
                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;− SUM(Production_Log consumption)
                 </div>
                 <p className="text-xs text-gray-500 mb-2">
-                  Consumption per day comes from production formulas (cement bags, greet kg, powder kg, etc.) stored in
+                  Consumption per day comes from production formulas (cement bags, greet ton, powder ton, colour kg,
+                  chemical/plastic litres, etc.) stored in
                   Production_Log when you save daily production.
                 </p>
               </div>
@@ -392,7 +400,7 @@ export default function MaterialStock() {
                       <div key={meta.id} className="flex justify-between text-sm py-1 border-b border-gray-50">
                         <span>{meta.emoji} {meta.label}</span>
                         <span className="font-bold">
-                          {formatMaterialQty(debugData.consumedMap[meta.id] || 0, meta.unit)} {meta.unit}
+                          {formatMaterialQty(debugData.consumedMap[meta.id] || 0, meta.unit)} {unitLabel(meta.unit)}
                         </span>
                       </div>
                     ))}
