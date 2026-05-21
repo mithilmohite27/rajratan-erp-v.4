@@ -33,6 +33,112 @@ function FormulaRow({ label, value, sign, unit, color }) {
   )
 }
 
+/** Teal dashboard card — material-wise (not mixed totals) */
+function MaterialDashboardSummary({ inventory }) {
+  const inStockCount = MATERIAL_LIST.filter(m => inventory[m.id].stock > 0).length
+
+  return (
+    <div className="bg-teal-600 rounded-2xl p-5 text-white">
+      <p className="text-sm opacity-80">Materials tracked</p>
+      <p className="text-3xl font-bold mt-1">{MATERIAL_LIST.length}</p>
+      <p className="text-sm opacity-80 mt-0.5">Auto-synced from Production &amp; Vendors</p>
+      <p className="text-xs opacity-70 mt-1">{inStockCount} material{inStockCount !== 1 ? 's' : ''} in stock right now</p>
+
+      <div className="mt-4 space-y-2">
+        {MATERIAL_LIST.map(meta => {
+          const d = inventory[meta.id]
+          return (
+            <div key={meta.id} className="bg-white/15 rounded-xl p-3 text-xs">
+              <p className="font-bold text-sm mb-2">
+                {meta.emoji} {meta.label}{' '}
+                <span className="font-normal opacity-80">({unitLabel(meta.unit)})</span>
+              </p>
+              <div className="grid grid-cols-4 gap-1 text-center">
+                <div className="bg-white/10 rounded-lg p-1.5">
+                  <p className="font-bold text-sm leading-tight">{formatMaterialQty(d.opening, meta.unit)}</p>
+                  <p className="opacity-70 text-[10px] mt-0.5">Opening</p>
+                </div>
+                <div className="bg-white/10 rounded-lg p-1.5">
+                  <p className="font-bold text-sm leading-tight text-green-200">
+                    {formatMaterialQty(d.purchased, meta.unit)}
+                  </p>
+                  <p className="opacity-70 text-[10px] mt-0.5">Purchased</p>
+                </div>
+                <div className="bg-white/10 rounded-lg p-1.5">
+                  <p className="font-bold text-sm leading-tight text-orange-200">
+                    {formatMaterialQty(d.consumed, meta.unit)}
+                  </p>
+                  <p className="opacity-70 text-[10px] mt-0.5">Used</p>
+                </div>
+                <div className="bg-white/25 rounded-lg p-1.5">
+                  <p className="font-bold text-sm leading-tight">{formatMaterialQty(d.stock, meta.unit)}</p>
+                  <p className="opacity-90 text-[10px] mt-0.5 font-semibold">In stock</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Name-wise table — Opening + Purchased − Used = Balance (per material, correct unit) */
+function MaterialTrackerTable({ inventory }) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide px-3 pt-3 pb-1">
+        Material tracker (name wise)
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs min-w-[320px]">
+          <thead>
+            <tr className="bg-teal-50 text-teal-800 border-b border-teal-100">
+              <th className="text-left p-2.5 font-bold sticky left-0 bg-teal-50 z-10">Material</th>
+              <th className="text-right p-2.5 font-semibold whitespace-nowrap">Opening</th>
+              <th className="text-right p-2.5 font-semibold whitespace-nowrap">Purchased</th>
+              <th className="text-right p-2.5 font-semibold whitespace-nowrap">Used</th>
+              <th className="text-right p-2.5 font-bold whitespace-nowrap">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MATERIAL_LIST.map(meta => {
+              const d = inventory[meta.id]
+              const low = d.stock <= 0 && (d.opening > 0 || d.purchased > 0)
+              return (
+                <tr
+                  key={meta.id}
+                  className={`border-b border-gray-50 ${low ? 'bg-red-50/50' : ''}`}
+                >
+                  <td className={`p-2.5 sticky left-0 z-10 border-r border-gray-50 ${low ? 'bg-red-50/50' : 'bg-white'}`}>
+                    <p className={`font-bold ${meta.color}`}>{meta.emoji} {meta.label}</p>
+                    <p className="text-[10px] text-gray-400">{unitLabel(meta.unit)}</p>
+                  </td>
+                  <td className="text-right p-2.5 text-gray-600 tabular-nums">
+                    {formatMaterialQty(d.opening, meta.unit)}
+                  </td>
+                  <td className="text-right p-2.5 text-green-600 tabular-nums">
+                    {d.purchased > 0 ? `+${formatMaterialQty(d.purchased, meta.unit)}` : '—'}
+                  </td>
+                  <td className="text-right p-2.5 text-red-500 tabular-nums">
+                    {d.consumed > 0 ? `−${formatMaterialQty(d.consumed, meta.unit)}` : '—'}
+                  </td>
+                  <td className={`text-right p-2.5 font-bold tabular-nums ${d.stock > 0 ? 'text-gray-900' : 'text-red-500'}`}>
+                    {formatMaterialQty(d.stock, meta.unit)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-gray-400 px-3 py-2 border-t border-gray-50">
+        Balance = Opening + Purchased − Used (from Production & Vendors)
+      </p>
+    </div>
+  )
+}
+
 function MaterialCard({ meta, data }) {
   const { opening, purchased, consumed, stock } = data
   const total = opening + purchased
@@ -264,59 +370,9 @@ export default function MaterialStock() {
 
           {tab === 'dashboard' && !hasNoData && (
             <>
-              <div className="bg-teal-600 rounded-2xl p-5 text-white">
-                <p className="text-sm opacity-80">Materials tracked</p>
-                <p className="text-3xl font-bold mt-1">{MATERIAL_LIST.length}</p>
-                <p className="text-sm opacity-80 mt-0.5">Auto-synced from Production & Vendors</p>
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                  <div className="bg-white/20 rounded-xl p-2">
-                    <p className="font-bold text-base">{formatMaterialQty(totals.purchased, '')}</p>
-                    <p className="opacity-70">Purchased</p>
-                  </div>
-                  <div className="bg-white/20 rounded-xl p-2">
-                    <p className="font-bold text-base">{formatMaterialQty(totals.consumed, '')}</p>
-                    <p className="opacity-70">Used</p>
-                  </div>
-                  <div className="bg-white/20 rounded-xl p-2">
-                    <p className="font-bold text-base">{MATERIAL_LIST.filter(m => inventory[m.id].stock > 0).length}</p>
-                    <p className="opacity-70">In stock</p>
-                  </div>
-                </div>
-              </div>
+              <MaterialDashboardSummary inventory={inventory} />
 
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Current balance</div>
-              <div className="grid grid-cols-2 gap-2">
-                {MATERIAL_LIST.map(meta => (
-                  <div key={meta.id} className={`border rounded-xl p-3 ${meta.bg}`}>
-                    <p className={`text-xs font-semibold ${meta.color}`}>
-                      {meta.emoji} {meta.label}
-                    </p>
-                    <p className="text-xl font-bold text-gray-800 mt-1">
-                      {formatMaterialQty(inventory[meta.id].stock, meta.unit)}
-                    </p>
-                    <p className="text-xs text-gray-400">{unitLabel(meta.unit)} remaining</p>
-                    {inventory[meta.id].consumed > 0 && (
-                      <p className="text-xs text-red-400 mt-1">
-                        −{formatMaterialQty(inventory[meta.id].consumed, meta.unit)} used
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-white border border-gray-100 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-                <p className="font-semibold text-gray-700 text-sm">Units</p>
-                {MATERIAL_LIST.map(m => (
-                  <p key={m.id}>{m.emoji} {m.label}: <strong>{unitLabel(m.unit)}</strong></p>
-                ))}
-              </div>
-
-              <div className="bg-white border border-gray-100 rounded-xl p-3 text-sm text-gray-600 space-y-1">
-                <p className="font-semibold text-gray-700">Automatic updates</p>
-                <p>🏭 <strong>Production</strong> — daily save deducts calculated material usage</p>
-                <p>🧾 <strong>Vendors</strong> — invoice with quantity increases stock</p>
-                <p>🔄 Refresh anytime — all numbers recompute from the sheet</p>
-              </div>
+              <MaterialTrackerTable inventory={inventory} />
 
               <button
                 onClick={() => setShowQuickFix(v => !v)}
