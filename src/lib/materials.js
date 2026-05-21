@@ -53,19 +53,47 @@ export function normalizeVendorMaterial(name) {
   return n === 'Other' ? null : null
 }
 
-/** Consumption qty from one Production_Log row */
+/** Read first matching field from a production row (handles header renames in Sheet) */
+function pick(row, keys) {
+  for (const k of keys) {
+    if (row[k] != null && row[k] !== '') return row[k]
+  }
+  return 0
+}
+
+/** Production_Log stores greet/powder in kg (large numbers). Values under 200 are already tonnes. */
+function bulkKgToTon(v) {
+  const n = parseFloat(v) || 0
+  if (n <= 0) return 0
+  return n > 200 ? n / 1000 : n
+}
+
+/** Plastic: column is usually ml; small values may already be litres */
+function plasticToLitres(v) {
+  const n = parseFloat(v) || 0
+  if (n <= 0) return 0
+  return n > 500 ? n / 1000 : n
+}
+
+/** Consumption qty from one Production_Log row (stock units: ton, bags, L, kg) */
 export function consumptionFromProductionRow(row) {
-  const n = (v) => parseFloat(v) || 0
-  const cement = n(row.TotalCement) || (n(row.MortarCement) + n(row.ColorCement))
-  const colorKg = (n(row.YellowFinal) + n(row.RedFinal)) || (n(row.YellowKG) + n(row.RedKG))
+  const mortar = parseFloat(pick(row, ['MortarCement', 'Mortar Cement'])) || 0
+  const colorCement = parseFloat(pick(row, ['ColorCement', 'Color Cement'])) || 0
+  const cement = parseFloat(pick(row, ['TotalCement', 'Total Cement'])) || mortar + colorCement
+  const colorKg =
+    (parseFloat(pick(row, ['YellowFinal', 'Yellow Final'])) || 0) +
+    (parseFloat(pick(row, ['RedFinal', 'Red Final'])) || 0) ||
+    (parseFloat(pick(row, ['YellowKG', 'Yellow KG', 'YellowKg'])) || 0) +
+    (parseFloat(pick(row, ['RedKG', 'Red KG', 'RedKg'])) || 0)
+
   return {
     Cement:   round3(cement),
-    Greet:    round3(n(row.Greet_kg) / 1000),
-    Powder:   round3(n(row.Powder_kg) / 1000),
-    Chemical: round3(n(row.Chemical_L)),
+    Greet:    round3(bulkKgToTon(pick(row, ['Greet_kg', 'Greet kg', 'Greet', 'GreetKG']))),
+    Powder:   round3(bulkKgToTon(pick(row, ['Powder_kg', 'Powder kg', 'Powder', 'PowderKG']))),
+    Chemical: round3(parseFloat(pick(row, ['Chemical_L', 'Chemical L', 'Chemical'])) || 0),
     Color:    round3(colorKg),
-    Reti:     round3(n(row.Reti)),
-    Plastic:  round3(n(row.Plastic_ml) / 1000),
+    Reti:     round3(parseFloat(pick(row, ['Reti'])) || 0),
+    Plastic:  round3(plasticToLitres(pick(row, ['Plastic_ml', 'Plastic ml', 'Plastic']))),
   }
 }
 

@@ -177,8 +177,56 @@ export async function getOpeningStockMap(accessToken) {
 //  Tab: Production_Log  — unchanged schema
 // ─────────────────────────────────────────────
 
+/** Map Production_Log rows to canonical field names (tolerant of header spelling / column order) */
 export async function loadProduction(accessToken) {
-  return loadTab(accessToken, 'Production_Log')
+  const raw = await readSheet(accessToken, 'Production_Log!A:Z')
+  if (!raw || raw.length < 2) return []
+
+  const headers = raw[0].map(h => (h || '').toString().trim())
+  const lower = headers.map(h => h.toLowerCase())
+
+  const col = (pred, fallback = -1) => {
+    const i = lower.findIndex(pred)
+    return i >= 0 ? i : fallback
+  }
+
+  const idx = {
+    date:         col(h => h === 'date', 0),
+    blocks:       col(h => h === 'blocks', 1),
+    mortarCement: col(h => h.includes('mortar') && h.includes('cement'), 2),
+    colorCement:  col(h => h.includes('color') && h.includes('cement') && !h.includes('total'), 3),
+    totalCement:  col(h => h.includes('total') && h.includes('cement'), 4),
+    greet:        col(h => h.includes('greet') && !h.includes('cost'), 5),
+    powder:       col(h => h.includes('powder') && !h.includes('cost'), 6),
+    chemical:     col(h => h.includes('chemical') && !h.includes('cost'), 7),
+    yellowKG:     col(h => h.includes('yellow') && (h.includes('kg') || h === 'yellowkg'), 8),
+    redKG:        col(h => h.includes('red') && (h.includes('kg') || h === 'redkg'), 9),
+    yellowFinal:  col(h => h.includes('yellow') && h.includes('final'), 10),
+    redFinal:     col(h => h.includes('red') && h.includes('final'), 11),
+    reti:         col(h => h === 'reti', 12),
+    plastic:      col(h => h.includes('plastic') && !h.includes('cost'), 13),
+  }
+
+  const cell = (row, i) => (i >= 0 && row[i] != null ? row[i] : '')
+
+  return raw.slice(1)
+    .filter(row => row.some(c => (c || '').toString().trim() !== ''))
+    .map(row => ({
+      Date:         cell(row, idx.date),
+      Blocks:       cell(row, idx.blocks),
+      MortarCement: cell(row, idx.mortarCement),
+      ColorCement:  cell(row, idx.colorCement),
+      TotalCement:  cell(row, idx.totalCement),
+      Greet_kg:     cell(row, idx.greet),
+      Powder_kg:    cell(row, idx.powder),
+      Chemical_L:   cell(row, idx.chemical),
+      YellowKG:     cell(row, idx.yellowKG),
+      RedKG:        cell(row, idx.redKG),
+      YellowFinal:  cell(row, idx.yellowFinal),
+      RedFinal:     cell(row, idx.redFinal),
+      Reti:         cell(row, idx.reti),
+      Plastic_ml:   cell(row, idx.plastic),
+    }))
 }
 
 export async function saveProductionEntry(accessToken, entry) {
@@ -671,18 +719,25 @@ export async function computeMaterialInventoryDebug(accessToken) {
   ])
 
   const consumed = aggregateProductionConsumption(production)
+  const greetSample = production
+    .filter(r => parseFloat(r.Greet_kg) > 0)
+    .slice(-3)
+    .map(r => ({ Date: r.Date, Greet_kg: r.Greet_kg, Powder_kg: r.Powder_kg }))
 
   return {
     openingRaw,
     openingMap,
     purchaseRows: purchases,
     productionRows: production.slice(-10),
+    greetSample,
     consumedMap: consumed,
     summary: {
       openingRawCount: openingRaw.length,
       openingMapMaterials: Object.keys(openingMap),
       purchaseCount: purchases.length,
       productionCount: production.length,
+      greetKgReadable: production.some(r => parseFloat(r.Greet_kg) > 0),
+      powderKgReadable: production.some(r => parseFloat(r.Powder_kg) > 0),
     },
   }
 }

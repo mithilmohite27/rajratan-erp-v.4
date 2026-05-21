@@ -448,7 +448,24 @@ export default function MaterialStock() {
                       count={debugData.summary.productionCount}
                       ok={debugData.summary.productionCount > 0}
                     />
+                    <SourceRow
+                      label="🪨 Greet readable in Production"
+                      count={debugData.summary.greetKgReadable ? 1 : 0}
+                      ok={debugData.summary.greetKgReadable}
+                    />
+                    <SourceRow
+                      label="⚪ Powder readable in Production"
+                      count={debugData.summary.powderKgReadable ? 1 : 0}
+                      ok={debugData.summary.powderKgReadable}
+                    />
                   </div>
+
+                  {!debugData.summary.greetKgReadable && debugData.summary.productionCount > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">
+                      Production rows exist but <strong>Greet_kg</strong> / <strong>Powder_kg</strong> columns are
+                      empty or misnamed. Check row 1 headers in Production_Log tab match: Greet_kg, Powder_kg.
+                    </div>
+                  )}
 
                   <div className="bg-white border border-gray-100 rounded-2xl p-4">
                     <p className="text-xs font-bold text-gray-500 uppercase mb-2">Production consumption (totals)</p>
