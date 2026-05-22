@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadQC, saveQCEntry, loadProduction, resetQCLog } from '../lib/sheets.js'
+import { loadQC, saveQCEntry, loadProduction } from '../lib/sheets.js'
 import { formatINR, formatNum, today } from '../lib/formulas.js'
 
 const COLORS   = ['Red', 'Yellow', 'Black', 'White', 'All Colors']
@@ -17,7 +17,6 @@ export default function QC() {
   const [refresh,  setRefresh]  = useState(0)
   const [error,    setError]    = useState('')
   const [saved,    setSaved]    = useState(false)
-  const [resetting, setResetting] = useState(false)
 
   const [form, setForm] = useState({ date: today(), color: 'All Colors', brokenBlocks: '', notes: '' })
 
@@ -35,12 +34,9 @@ export default function QC() {
   }
   useEffect(() => { fetchData() }, [refresh])
 
-  const latestProd = [...prodRows].reverse().find(r =>
-    parseFloat(r.TotalDailyCost) > 0 && parseFloat(r.Blocks) > 0
-  )
-  // Use actual cost if available, else estimate from config (cement 340×21bags / avg blocks)
+  const latestProd   = prodRows[prodRows.length - 1]
   const costPerBlock = latestProd
-    ? parseFloat(latestProd.TotalDailyCost) / parseFloat(latestProd.Blocks)
+    ? ((parseFloat(latestProd.TotalDailyCost) / parseFloat(latestProd.Blocks)) || 0)
     : 0
 
   const brokenInput   = parseFloat(form.brokenBlocks) || 0
@@ -57,17 +53,6 @@ export default function QC() {
         return s + (parseFloat(r.BrokenBlocks) || 0) / 4
       }, 0)
   }))
-
-  const handleReset = async () => {
-    if (!window.confirm('This will clear all QC log entries and fix the column structure. Continue?')) return
-    setResetting(true)
-    try {
-      await resetQCLog(accessToken)
-      setRefresh(v => v + 1)
-      setError('')
-    } catch (e) { setError('Reset failed: ' + e.message) }
-    setResetting(false)
-  }
 
   const handleSave = async () => {
     if (!form.brokenBlocks) { setError('Enter number of broken blocks.'); return }
@@ -186,12 +171,6 @@ export default function QC() {
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-red-500 disabled:bg-red-300 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-red-200 transition-all active:scale-95">
             {saving ? '⏳ Logging...' : `🔴 Log ${brokenInput > 0 ? brokenInput.toLocaleString('en-IN') + ' Broken ' : ''}Blocks`}
-          </button>
-
-          {/* Fix corrupt QC_Log tab */}
-          <button onClick={handleReset} disabled={resetting}
-            className="w-full border border-gray-200 text-gray-400 text-xs font-semibold py-2 rounded-2xl">
-            {resetting ? '⏳ Resetting...' : '🔧 Fix QC Log Tab (use if data not saving correctly)'}
           </button>
         </>}
 
