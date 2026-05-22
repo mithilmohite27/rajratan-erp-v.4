@@ -824,6 +824,8 @@ export async function computeMaterialInventoryDebug(accessToken) {
       openingMapMaterials:  Object.keys(openingMap),
       purchaseCount:        purchases.length,
       productionCount:      production.length,
+      greetKgReadable:      production.some(r => parseFloat(r.Greet_kg) > 0),
+      powderKgReadable:     production.some(r => parseFloat(r.Powder_kg) > 0),
     },
   }
 }
