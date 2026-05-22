@@ -131,8 +131,8 @@ export function normalizeToStockUnit(qty, unit, material) {
 export function consumptionFromProductionRow(row) {
   return {
     Cement:   (parseFloat(row.MortarCement) || 0) + (parseFloat(row.ColorCement) || 0),
-    Greet:    parseFloat(row.Greet_kg)   || 0,
-    Powder:   parseFloat(row.Powder_kg)  || 0,
+    Greet:    (parseFloat(row.Greet_kg)   || 0) / 1000,  // stored in kg → convert to ton
+    Powder:   (parseFloat(row.Powder_kg)  || 0) / 1000,  // stored in kg → convert to ton
     Chemical: parseFloat(row.Chemical_L) || 0,
     Yellow:   parseFloat(row.YellowKG)   || 0,
     Red:      parseFloat(row.RedKG)      || 0,
