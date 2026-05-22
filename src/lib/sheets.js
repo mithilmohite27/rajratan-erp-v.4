@@ -1,8 +1,18 @@
 // ─────────────────────────────────────────────
 //  sheets.js  —  Complete Google Sheets data layer
-//  New tabs: Production_Variants, Opening_Stock
-//  Updated: CRM_Log (Color + Status), QC_Log (Color)
+//  New tabs: Production_Variants, Opening_Stock,
+//            Opening_Material_Stock
+//  Updated: CRM_Log (Color + Status), QC_Log (Color),
+//           Vendor_Ledger (Quantity + Unit)
 // ─────────────────────────────────────────────
+
+import {
+  MATERIAL_IDS,
+  MATERIAL_UNITS,
+  consumptionFromProductionRow,
+  normalizeVendorMaterial,
+  normalizeToStockUnit,
+} from './materials.js'
 
 const SHEET_ID = import.meta.env.VITE_SHEET_ID
 
@@ -167,8 +177,56 @@ export async function getOpeningStockMap(accessToken) {
 //  Tab: Production_Log  — unchanged schema
 // ─────────────────────────────────────────────
 
+/** Map Production_Log rows to canonical field names (tolerant of header spelling / column order) */
 export async function loadProduction(accessToken) {
-  return loadTab(accessToken, 'Production_Log')
+  const raw = await readSheet(accessToken, 'Production_Log!A:Z')
+  if (!raw || raw.length < 2) return []
+
+  const headers = raw[0].map(h => (h || '').toString().trim())
+  const lower = headers.map(h => h.toLowerCase())
+
+  const col = (pred, fallback = -1) => {
+    const i = lower.findIndex(pred)
+    return i >= 0 ? i : fallback
+  }
+
+  const idx = {
+    date:         col(h => h === 'date', 0),
+    blocks:       col(h => h === 'blocks', 1),
+    mortarCement: col(h => h.includes('mortar') && h.includes('cement'), 2),
+    colorCement:  col(h => h.includes('color') && h.includes('cement') && !h.includes('total'), 3),
+    totalCement:  col(h => h.includes('total') && h.includes('cement'), 4),
+    greet:        col(h => h.includes('greet') && !h.includes('cost'), 5),
+    powder:       col(h => h.includes('powder') && !h.includes('cost'), 6),
+    chemical:     col(h => h.includes('chemical') && !h.includes('cost'), 7),
+    yellowKG:     col(h => h.includes('yellow') && (h.includes('kg') || h === 'yellowkg'), 8),
+    redKG:        col(h => h.includes('red') && (h.includes('kg') || h === 'redkg'), 9),
+    yellowFinal:  col(h => h.includes('yellow') && h.includes('final'), 10),
+    redFinal:     col(h => h.includes('red') && h.includes('final'), 11),
+    reti:         col(h => h === 'reti', 12),
+    plastic:      col(h => h.includes('plastic') && !h.includes('cost'), 13),
+  }
+
+  const cell = (row, i) => (i >= 0 && row[i] != null ? row[i] : '')
+
+  return raw.slice(1)
+    .filter(row => row.some(c => (c || '').toString().trim() !== ''))
+    .map(row => ({
+      Date:         cell(row, idx.date),
+      Blocks:       cell(row, idx.blocks),
+      MortarCement: cell(row, idx.mortarCement),
+      ColorCement:  cell(row, idx.colorCement),
+      TotalCement:  cell(row, idx.totalCement),
+      Greet_kg:     cell(row, idx.greet),
+      Powder_kg:    cell(row, idx.powder),
+      Chemical_L:   cell(row, idx.chemical),
+      YellowKG:     cell(row, idx.yellowKG),
+      RedKG:        cell(row, idx.redKG),
+      YellowFinal:  cell(row, idx.yellowFinal),
+      RedFinal:     cell(row, idx.redFinal),
+      Reti:         cell(row, idx.reti),
+      Plastic_ml:   cell(row, idx.plastic),
+    }))
 }
 
 export async function saveProductionEntry(accessToken, entry) {
@@ -319,21 +377,6 @@ export async function saveQCEntry(accessToken, entry) {
 }
 
 // ─────────────────────────────────────────────
-//  QC RESET — clears and re-initialises QC_Log
-// ─────────────────────────────────────────────
-export async function resetQCLog(accessToken) {
-  // Clear entire sheet content and rewrite header only
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/QC_Log!A:F:clear`
-  await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-  })
-  // Write correct header
-  await updateRange(accessToken, 'QC_Log!A1', [['Date','Color','BrokenBlocks','CostPerBlock','TotalLoss','Notes']])
-  return true
-}
-
-// ─────────────────────────────────────────────
 //  CASH FLOW
 // ─────────────────────────────────────────────
 
@@ -353,9 +396,18 @@ export async function saveCashFlowEntry(accessToken, entry) {
 export async function loadVendors(accessToken) { return loadTab(accessToken, 'Vendor_Ledger') }
 
 export async function saveVendorEntry(accessToken, entry) {
-  await ensureHeaders(accessToken, 'Vendor_Ledger', ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Vendor_Ledger', [
+    'Date', 'VendorName', 'Material', 'Type', 'Quantity', 'Unit', 'Amount', 'Notes'
+  ])
   await appendRow(accessToken, 'Vendor_Ledger!A:A', [
-    entry.date, entry.vendorName, entry.material, entry.type, entry.amount, entry.notes || ''
+    entry.date,
+    entry.vendorName,
+    entry.material || '',
+    entry.type,
+    entry.quantity != null && entry.quantity !== '' ? parseFloat(entry.quantity) : '',
+    entry.unit || '',
+    entry.amount,
+    entry.notes || '',
   ])
 }
 
@@ -518,7 +570,8 @@ export async function seedStaticData(accessToken, today) {
   await ensureHeaders(accessToken, 'CRM_Log',              ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes'])
   await ensureHeaders(accessToken, 'QC_Log',               ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'])
   await ensureHeaders(accessToken, 'CashFlow_Log',         ['Date', 'Type', 'Source', 'Amount', 'Description', 'VendorName'])
-  await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Quantity', 'Unit', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Opening_Material_Stock', ['Date', 'Type', 'Material', 'Quantity', 'Unit', 'Notes'])
   await ensureHeaders(accessToken, 'Payroll_Log',          ['Date', 'WorkerName', 'Type', 'Blocks', 'WageRate', 'Amount', 'Notes'])
 
   return true
@@ -527,6 +580,168 @@ export async function seedStaticData(accessToken, today) {
 // ─────────────────────────────────────────────
 //  DEBUG — returns raw source counts for diagnosis
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+//  OPENING MATERIAL STOCK
+//  Tab: Opening_Material_Stock
+//  Schema: Date | Type | Material | Quantity | Unit | Notes
+// ─────────────────────────────────────────────
+
+export async function saveOpeningMaterialStock(accessToken, entries) {
+  // entries = [{ material, quantity, unit, setupDate, notes }]
+  await ensureHeaders(accessToken, 'Opening_Material_Stock', [
+    'Date', 'Type', 'Material', 'Quantity', 'Unit', 'Notes'
+  ])
+  const rows = entries.map(e => [
+    e.setupDate,
+    'Opening',
+    e.material,
+    parseFloat(e.quantity) || 0,
+    e.unit || (MATERIAL_UNITS[e.material] ?? ''),
+    e.notes || 'Opening balance',
+  ])
+  await appendRows(accessToken, 'Opening_Material_Stock!A:A', rows)
+}
+
+export async function getOpeningMaterialMap(accessToken) {
+  const raw = await readSheet(accessToken, 'Opening_Material_Stock!A:F')
+  if (!raw?.length) return {}
+
+  const map = {}
+  raw.forEach(row => {
+    if (!row || row[0] === 'Date' || row[0] === 'Material') return
+    let material = null
+    let qty = null
+    row.forEach((cell, idx) => {
+      const val = (cell || '').toString().trim()
+      if (MATERIAL_IDS.includes(val)) {
+        material = val
+        const next = parseFloat(row[idx + 1])
+        const prev = parseFloat(row[idx - 1])
+        if (!isNaN(next) && next > 0) qty = next
+        else if (!isNaN(prev) && prev > 0) qty = prev
+      }
+    })
+    if (!material) {
+      const colC = (row[2] || '').toString().trim()
+      const colD = parseFloat(row[3])
+      if (MATERIAL_IDS.includes(colC) && colD > 0) {
+        material = colC
+        qty = colD
+      }
+    }
+    const unit = (row[4] || '').toString().trim()
+    if (material && qty > 0) {
+      const stockQty = normalizeToStockUnit(qty, unit, material)
+      map[material] = (map[material] || 0) + stockQty
+    }
+  })
+  return map
+}
+
+/** Vendor invoices with quantity → material inflow */
+export async function loadMaterialPurchases(accessToken) {
+  const rows = await loadVendors(accessToken)
+  return rows.filter(r => {
+    if (r.Type !== 'Invoice') return false
+    const qty = parseFloat(r.Quantity)
+    if (!qty || qty <= 0) return false
+    const mat = normalizeVendorMaterial(r.Material)
+    return mat && MATERIAL_IDS.includes(mat)
+  })
+}
+
+/** Aggregate consumption from all Production_Log rows */
+export function aggregateProductionConsumption(productionRows) {
+  const totals = MATERIAL_IDS.reduce((a, id) => ({ ...a, [id]: 0 }), {})
+  productionRows.forEach(row => {
+    const c = consumptionFromProductionRow(row)
+    MATERIAL_IDS.forEach(id => {
+      totals[id] += c[id] || 0
+    })
+  })
+  MATERIAL_IDS.forEach(id => {
+    totals[id] = Math.round(totals[id] * 1000) / 1000
+  })
+  return totals
+}
+
+// ─────────────────────────────────────────────
+//  MATERIAL INVENTORY ENGINE  (computed — never stored)
+//
+//  Formula:  Current Stock =
+//    Opening_Material_Stock
+//    + SUM(Vendor_Ledger.Quantity where Type=Invoice)
+//    - SUM(Production_Log consumption per material)
+// ─────────────────────────────────────────────
+
+export async function computeMaterialInventory(accessToken) {
+  const [opening, purchases, production] = await Promise.all([
+    getOpeningMaterialMap(accessToken).catch(() => ({})),
+    loadMaterialPurchases(accessToken).catch(() => []),
+    loadProduction(accessToken).catch(() => []),
+  ])
+
+  const consumed = aggregateProductionConsumption(production)
+  const result = {}
+
+  MATERIAL_IDS.forEach(material => {
+    const openingQty = opening[material] || 0
+    const purchased = purchases
+      .filter(r => normalizeVendorMaterial(r.Material) === material)
+      .reduce(
+        (s, r) => s + normalizeToStockUnit(r.Quantity, r.Unit, material),
+        0
+      )
+    const used = consumed[material] || 0
+    const stock = Math.max(0, openingQty + purchased - used)
+
+    result[material] = {
+      opening:   roundMat(openingQty),
+      purchased: roundMat(purchased),
+      consumed:  roundMat(used),
+      stock:     roundMat(stock),
+    }
+  })
+
+  return result
+}
+
+function roundMat(n) {
+  return Math.round(n * 1000) / 1000
+}
+
+export async function computeMaterialInventoryDebug(accessToken) {
+  const [openingRaw, openingMap, purchases, production] = await Promise.all([
+    readSheet(accessToken, 'Opening_Material_Stock!A:F').catch(() => []),
+    getOpeningMaterialMap(accessToken).catch(() => ({})),
+    loadMaterialPurchases(accessToken).catch(() => []),
+    loadProduction(accessToken).catch(() => []),
+  ])
+
+  const consumed = aggregateProductionConsumption(production)
+  const greetSample = production
+    .filter(r => parseFloat(r.Greet_kg) > 0)
+    .slice(-3)
+    .map(r => ({ Date: r.Date, Greet_kg: r.Greet_kg, Powder_kg: r.Powder_kg }))
+
+  return {
+    openingRaw,
+    openingMap,
+    purchaseRows: purchases,
+    productionRows: production.slice(-10),
+    greetSample,
+    consumedMap: consumed,
+    summary: {
+      openingRawCount: openingRaw.length,
+      openingMapMaterials: Object.keys(openingMap),
+      purchaseCount: purchases.length,
+      productionCount: production.length,
+      greetKgReadable: production.some(r => parseFloat(r.Greet_kg) > 0),
+      powderKgReadable: production.some(r => parseFloat(r.Powder_kg) > 0),
+    },
+  }
+}
+
 export async function computeInventoryDebug(accessToken) {
   // Read opening stock RAW (by index) so debug always shows truth
   const [openingRaw, variants, allCRM, qc, openingMap] = await Promise.all([
