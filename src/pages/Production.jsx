@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { calcProduction, calcDailyCost, formatINR, formatNum, today } from '../lib/formulas.js'
-import { unitLabel } from '../lib/materials.js'
 import { saveProductionEntry, saveProductionVariants, loadProduction } from '../lib/sheets.js'
 import { blocksToBrass } from '../lib/formulas.js'
 
@@ -73,11 +72,17 @@ function CostRow({ label, value, highlight }) {
 
 // ── History row ───────────────────────────────
 function HistoryCard({ entry }) {
+  const cost = parseFloat(entry.TotalDailyCost) || 0
+  const blocks = parseFloat(entry.Blocks) || 0
+  const costPerBlock = cost > 0 && blocks > 0 ? cost / blocks : 0
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
       <div className="flex justify-between items-start mb-2">
         <span className="text-sm font-bold text-gray-700">{entry.Date}</span>
-        <span className="text-sm font-bold text-orange-500">{formatINR(entry.TotalDailyCost)}</span>
+        {cost > 0
+          ? <span className="text-sm font-bold text-orange-500">{formatINR(cost)}</span>
+          : <span className="text-xs text-gray-300">cost not recorded</span>
+        }
       </div>
       <div className="grid grid-cols-3 gap-1 text-xs text-gray-500">
         <span>🧱 {Number(entry.Blocks).toLocaleString('en-IN')} blocks</span>
@@ -199,7 +204,7 @@ export default function Production() {
 
       <div className="p-4 space-y-3">
         {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">{error}</div>}
-        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold">✅ Saved — Block & material stock update automatically on refresh!</div>}
+        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold">✅ Saved to Sheets — Inventory updated automatically!</div>}
 
         {/* ── ENTRY TAB ── */}
         {tab === 'entry' && <>
@@ -249,7 +254,7 @@ export default function Production() {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg mt-2">
-            {saving ? '⏳ Saving...' : '💾 Save Production (updates Block + Material stock)'}
+            {saving ? '⏳ Saving & Syncing Inventory...' : '💾 Save Production + Update Inventory'}
           </button>
         </>}
 
@@ -317,12 +322,12 @@ export default function Production() {
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Material Calculations</div>
             <div className="grid grid-cols-2 gap-2">
               {[
-                ['Greet',    formatNum(c.greet / 1000, 3),  unitLabel('ton')],
-                ['Powder',   formatNum(c.powder / 1000, 3), unitLabel('ton')],
-                ['Chemical', formatNum(c.chemical),         unitLabel('L')],
-                ['Reti',     formatNum(c.reti),             unitLabel('ghamela')],
-                ['Plastic',  formatNum(c.plasticL ?? c.plastic / 1000), unitLabel('L')],
-                ['Cement',   formatNum(c.totalCement),      unitLabel('bags')],
+                ['Greet',    formatNum(c.greet/1000, 3),  'tons'],
+                ['Powder',   formatNum(c.powder/1000, 3), 'tons'],
+                ['Chemical', formatNum(c.chemical),    'litres'],
+                ['Reti',     formatNum(c.reti),        'ghamela'],
+                ['Plastic',  formatNum(c.plastic),     'ml'],
+                ['Cement',   formatNum(c.totalCement), 'bags'],
               ].map(([label, value, unit]) => (
                 <div key={label} className="bg-white border border-gray-100 rounded-xl p-3">
                   <p className="text-xs text-gray-400 mb-0.5">{label}</p>
@@ -334,11 +339,11 @@ export default function Production() {
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
                 <p className="text-xs text-yellow-600">🟡 Yellow Final</p>
-                <p className="text-base font-bold text-gray-800">{formatNum(c.yellowFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.yellowFinal)} <span className="text-xs font-normal text-gray-400">kg</span></p>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-xl p-3">
                 <p className="text-xs text-red-600">🔴 Red Final</p>
-                <p className="text-base font-bold text-gray-800">{formatNum(c.redFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.redFinal)} <span className="text-xs font-normal text-gray-400">kg</span></p>
               </div>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
