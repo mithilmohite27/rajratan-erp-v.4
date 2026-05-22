@@ -624,3 +624,206 @@ export async function computeInventoryDebug(accessToken) {
     }
   }
 }
+
+// ─────────────────────────────────────────────
+//  OPENING MATERIAL STOCK
+//  Tab: Opening_Material_Stock
+//  Schema: Date | Type | Material | Quantity | Unit | Notes
+// ─────────────────────────────────────────────
+
+const MATERIAL_IDS = [
+  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Reti', 'Plastic'
+]
+
+const MATERIAL_UNITS = {
+  Cement:   'bags',
+  Greet:    'ton',
+  Powder:   'ton',
+  Chemical: 'L',
+  Yellow:   'kg',
+  Red:      'kg',
+  Reti:     'ghamela',
+  Plastic:  'ml',
+}
+
+function normalizeVendorMaterial(raw) {
+  if (!raw) return null
+  const s = raw.toString().trim().toLowerCase()
+  if (s.includes('cement'))   return 'Cement'
+  if (s.includes('greet'))    return 'Greet'
+  if (s.includes('powder'))   return 'Powder'
+  if (s.includes('chemical')) return 'Chemical'
+  if (s.includes('yellow'))   return 'Yellow'
+  if (s.includes('red'))      return 'Red'
+  if (s.includes('reti'))     return 'Reti'
+  if (s.includes('plastic'))  return 'Plastic'
+  return null
+}
+
+function normalizeToStockUnit(qty, unit, material) {
+  const q = parseFloat(qty) || 0
+  // Greet/Powder: vendor may enter in kg, stock kept in tons
+  if ((material === 'Greet' || material === 'Powder') && unit && unit.toLowerCase() === 'kg') {
+    return q / 1000
+  }
+  return q
+}
+
+function consumptionFromProductionRow(row) {
+  return {
+    Cement:   (parseFloat(row.MortarCement) || 0) + (parseFloat(row.ColorCement) || 0),
+    Greet:    parseFloat(row.Greet_kg)   || 0,
+    Powder:   parseFloat(row.Powder_kg)  || 0,
+    Chemical: parseFloat(row.Chemical_L) || 0,
+    Yellow:   parseFloat(row.YellowKG)   || 0,
+    Red:      parseFloat(row.RedKG)      || 0,
+    Reti:     parseFloat(row.Reti)       || 0,
+    Plastic:  parseFloat(row.Plastic_ml) || 0,
+  }
+}
+
+export async function saveOpeningMaterialStock(accessToken, entries) {
+  await ensureHeaders(accessToken, 'Opening_Material_Stock', [
+    'Date', 'Type', 'Material', 'Quantity', 'Unit', 'Notes'
+  ])
+  const rows = entries.map(e => [
+    e.setupDate,
+    'Opening',
+    e.material,
+    parseFloat(e.quantity) || 0,
+    e.unit || (MATERIAL_UNITS[e.material] ?? ''),
+    e.notes || 'Opening balance',
+  ])
+  await appendRows(accessToken, 'Opening_Material_Stock!A:A', rows)
+}
+
+export async function getOpeningMaterialMap(accessToken) {
+  const raw = await readSheet(accessToken, 'Opening_Material_Stock!A:F')
+  if (!raw?.length) return {}
+
+  const map = {}
+  raw.forEach(row => {
+    if (!row || row[0] === 'Date' || row[0] === 'Material') return
+    let material = null
+    let qty = null
+    row.forEach((cell, idx) => {
+      const val = (cell || '').toString().trim()
+      if (MATERIAL_IDS.includes(val)) {
+        material = val
+        const next = parseFloat(row[idx + 1])
+        const prev = parseFloat(row[idx - 1])
+        if (!isNaN(next) && next > 0) qty = next
+        else if (!isNaN(prev) && prev > 0) qty = prev
+      }
+    })
+    if (!material) {
+      const colC = (row[2] || '').toString().trim()
+      const colD = parseFloat(row[3])
+      if (MATERIAL_IDS.includes(colC) && colD > 0) {
+        material = colC
+        qty = colD
+      }
+    }
+    const unit = (row[4] || '').toString().trim()
+    if (material && qty > 0) {
+      const stockQty = normalizeToStockUnit(qty, unit, material)
+      map[material] = (map[material] || 0) + stockQty
+    }
+  })
+  return map
+}
+
+export async function loadMaterialPurchases(accessToken) {
+  const rows = await loadVendors(accessToken)
+  return rows.filter(r => {
+    if (r.Type !== 'Invoice') return false
+    const qty = parseFloat(r.Quantity)
+    if (!qty || qty <= 0) return false
+    const mat = normalizeVendorMaterial(r.Material)
+    return mat && MATERIAL_IDS.includes(mat)
+  })
+}
+
+export function aggregateProductionConsumption(productionRows) {
+  const totals = MATERIAL_IDS.reduce((a, id) => ({ ...a, [id]: 0 }), {})
+  productionRows.forEach(row => {
+    const c = consumptionFromProductionRow(row)
+    MATERIAL_IDS.forEach(id => {
+      totals[id] += c[id] || 0
+    })
+  })
+  MATERIAL_IDS.forEach(id => {
+    totals[id] = Math.round(totals[id] * 1000) / 1000
+  })
+  return totals
+}
+
+// ─────────────────────────────────────────────
+//  MATERIAL INVENTORY ENGINE  (computed — never stored)
+//
+//  Formula:  Current Stock =
+//    Opening_Material_Stock
+//    + SUM(Vendor_Ledger.Quantity where Type=Invoice)
+//    - SUM(Production_Log consumption per material)
+// ─────────────────────────────────────────────
+
+export async function computeMaterialInventory(accessToken) {
+  const [opening, purchases, production] = await Promise.all([
+    getOpeningMaterialMap(accessToken).catch(() => ({})),
+    loadMaterialPurchases(accessToken).catch(() => []),
+    loadProduction(accessToken).catch(() => []),
+  ])
+
+  const consumed = aggregateProductionConsumption(production)
+  const result = {}
+
+  MATERIAL_IDS.forEach(material => {
+    const openingQty = opening[material] || 0
+    const purchased = purchases
+      .filter(r => normalizeVendorMaterial(r.Material) === material)
+      .reduce(
+        (s, r) => s + normalizeToStockUnit(r.Quantity, r.Unit, material),
+        0
+      )
+    const used = consumed[material] || 0
+    const stock = Math.max(0, openingQty + purchased - used)
+
+    result[material] = {
+      opening:   roundMat(openingQty),
+      purchased: roundMat(purchased),
+      consumed:  roundMat(used),
+      stock:     roundMat(stock),
+    }
+  })
+
+  return result
+}
+
+function roundMat(n) {
+  return Math.round(n * 1000) / 1000
+}
+
+export async function computeMaterialInventoryDebug(accessToken) {
+  const [openingRaw, openingMap, purchases, production] = await Promise.all([
+    readSheet(accessToken, 'Opening_Material_Stock!A:F').catch(() => []),
+    getOpeningMaterialMap(accessToken).catch(() => ({})),
+    loadMaterialPurchases(accessToken).catch(() => []),
+    loadProduction(accessToken).catch(() => []),
+  ])
+
+  const consumed = aggregateProductionConsumption(production)
+
+  return {
+    openingRaw,
+    openingMap,
+    purchaseRows: purchases,
+    productionRows: production.slice(-10),
+    consumedMap: consumed,
+    summary: {
+      openingRawCount:      openingRaw.length,
+      openingMapMaterials:  Object.keys(openingMap),
+      purchaseCount:        purchases.length,
+      productionCount:      production.length,
+    },
+  }
+}
