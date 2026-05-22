@@ -631,56 +631,13 @@ export async function computeInventoryDebug(accessToken) {
 //  Schema: Date | Type | Material | Quantity | Unit | Notes
 // ─────────────────────────────────────────────
 
-const MATERIAL_IDS = [
-  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Reti', 'Plastic'
-]
-
-const MATERIAL_UNITS = {
-  Cement:   'bags',
-  Greet:    'ton',
-  Powder:   'ton',
-  Chemical: 'L',
-  Yellow:   'kg',
-  Red:      'kg',
-  Reti:     'ghamela',
-  Plastic:  'ml',
-}
-
-function normalizeVendorMaterial(raw) {
-  if (!raw) return null
-  const s = raw.toString().trim().toLowerCase()
-  if (s.includes('cement'))   return 'Cement'
-  if (s.includes('greet'))    return 'Greet'
-  if (s.includes('powder'))   return 'Powder'
-  if (s.includes('chemical')) return 'Chemical'
-  if (s.includes('yellow'))   return 'Yellow'
-  if (s.includes('red'))      return 'Red'
-  if (s.includes('reti'))     return 'Reti'
-  if (s.includes('plastic'))  return 'Plastic'
-  return null
-}
-
-function normalizeToStockUnit(qty, unit, material) {
-  const q = parseFloat(qty) || 0
-  // Greet/Powder: vendor may enter in kg, stock kept in tons
-  if ((material === 'Greet' || material === 'Powder') && unit && unit.toLowerCase() === 'kg') {
-    return q / 1000
-  }
-  return q
-}
-
-function consumptionFromProductionRow(row) {
-  return {
-    Cement:   (parseFloat(row.MortarCement) || 0) + (parseFloat(row.ColorCement) || 0),
-    Greet:    parseFloat(row.Greet_kg)   || 0,
-    Powder:   parseFloat(row.Powder_kg)  || 0,
-    Chemical: parseFloat(row.Chemical_L) || 0,
-    Yellow:   parseFloat(row.YellowKG)   || 0,
-    Red:      parseFloat(row.RedKG)      || 0,
-    Reti:     parseFloat(row.Reti)       || 0,
-    Plastic:  parseFloat(row.Plastic_ml) || 0,
-  }
-}
+import {
+  MATERIAL_IDS,
+  MATERIAL_UNITS,
+  normalizeVendorMaterial,
+  normalizeToStockUnit,
+  consumptionFromProductionRow,
+} from './materials.js'
 
 export async function saveOpeningMaterialStock(accessToken, entries) {
   await ensureHeaders(accessToken, 'Opening_Material_Stock', [
