@@ -14,6 +14,7 @@ import Payroll    from './pages/Payroll.jsx'
 import PL         from './pages/PL.jsx'
 import Settings   from './pages/Settings.jsx'
 import Setup      from './pages/Setup.jsx'
+import BillGenerator from './pages/Billgenerator.jsx'
 
 export const AppContext = createContext(null)
 export const useApp = () => useContext(AppContext)
@@ -28,7 +29,8 @@ const NAV = [
   { to: '/payroll',    icon: '👷', label: 'Payroll'    },
   { to: '/pl',         icon: '📊', label: 'P&L'        },
   { to: '/setup',      icon: '🌱', label: 'Setup'      },
-  { to: '/settings',   icon: '⚙️', label: 'Settings'  },
+  { to: '/settings',   icon: '⚙️', label: 'Settings'   },
+  { to: '/bills',      icon: '🧾', label: 'Bills'      },
 ]
 
 const BOTTOM_NAV = [
@@ -236,6 +238,7 @@ export default function App() {
             <Route path="/pl"         element={<PL />} />
             <Route path="/settings"   element={<Settings />} />
             <Route path="/setup"      element={<Setup />} />
+            <Route path="/bills" element={<BillGenerator />} />
           </Routes>
         </main>
         <BottomNav />

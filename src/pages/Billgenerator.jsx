@@ -1,0 +1,556 @@
+import React, { useState, useRef } from 'react'
+import { useApp } from '../App.jsx'
+import { today } from '../lib/formulas.js'
+
+// ── Company Details (fixed) ───────────────────
+const COMPANY = {
+  name:    'RAJ RATAN ENTERPRISE',
+  address: 'H.NO.628, CHUNKHADA FALIYU HANUMANBARI\nHANUMANBARI 396580\nGujarat, India',
+  gstin:   '',   // fill your GSTIN
+  pan:     '',   // fill your PAN
+  phone:   '8141680323',
+  bank:    '',   // Bank name
+  account: '',   // Account number
+  ifsc:    '',   // IFSC code
+  accName: 'RAJ RATAN ENTERPRISE',
+}
+
+const HSN_PAVING = '7016'
+const ITEM_DESC  = 'paving block'
+
+// ── Number to words ───────────────────────────
+function numToWords(n) {
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+                 'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen',
+                 'Seventeen','Eighteen','Nineteen']
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety']
+  if (n === 0) return 'Zero'
+  const convert = x => {
+    if (x < 20) return ones[x]
+    if (x < 100) return tens[Math.floor(x/10)] + (x%10 ? ' ' + ones[x%10] : '')
+    if (x < 1000) return ones[Math.floor(x/100)] + ' Hundred' + (x%100 ? ' ' + convert(x%100) : '')
+    if (x < 100000) return convert(Math.floor(x/1000)) + ' Thousand' + (x%1000 ? ' ' + convert(x%1000) : '')
+    if (x < 10000000) return convert(Math.floor(x/100000)) + ' Lakh' + (x%100000 ? ' ' + convert(x%100000) : '')
+    return convert(Math.floor(x/10000000)) + ' Crore' + (x%10000000 ? ' ' + convert(x%10000000) : '')
+  }
+  const rupees = Math.floor(n)
+  const paise  = Math.round((n - rupees) * 100)
+  let words = 'Rupees ' + convert(rupees)
+  if (paise) words += ' and ' + convert(paise) + ' Paise'
+  return words + ' Only'
+}
+
+const fmt2 = n => parseFloat(n || 0).toFixed(2)
+const fmt  = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// ── Tax Invoice Template ──────────────────────
+function TaxInvoicePreview({ data }) {
+  const qty      = parseFloat(data.qty)    || 0
+  const rate     = parseFloat(data.rate)   || 0
+  const taxable  = parseFloat(fmt2(qty * rate))
+  const cgst     = parseFloat(fmt2(taxable * 0.09))
+  const sgst     = parseFloat(fmt2(taxable * 0.09))
+  const rawTotal = taxable + cgst + sgst
+  const rounded  = Math.round(rawTotal)
+  const roundOff = parseFloat(fmt2(rounded - rawTotal))
+  const total    = rounded
+  const taxTotal = parseFloat(fmt2(cgst + sgst))
+
+  return (
+    <div className="bill-sheet" style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#000', background: '#fff', width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm', boxSizing: 'border-box' }}>
+      {/* Header */}
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '15px', borderBottom: '2px solid #000', paddingBottom: '4px', marginBottom: '6px' }}>TAX INVOICE</div>
+      <div style={{ textAlign: 'right', fontSize: '10px', marginBottom: '6px' }}>Original for Customer</div>
+
+      {/* Company + Invoice Info */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ width: '60px', height: '60px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#999', flexShrink: 0 }}>LOGO</div>
+                <div>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
+                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {COMPANY.gstin || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>PAN: {COMPANY.pan || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>Phone: {COMPANY.phone}</div>
+                </div>
+              </div>
+            </td>
+            <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top' }}>
+              <table style={{ width: '100%' }}>
+                <tbody>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Invoice No.:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '13px', paddingBottom: '4px' }}>{data.invoiceNo || 'INV1'}</td></tr>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Date:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '12px', paddingBottom: '8px' }}>{data.date ? new Date(data.date).toLocaleDateString('en-GB').replace(/\//g, '/') : ''}</td></tr>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Place of Supply:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '11px' }}>[GJ] - {data.placeOfSupply || 'Gujarat'}</td></tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Bill To / Ship To */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <tbody>
+          <tr>
+            {['Bill To', 'Ship To'].map(label => (
+              <td key={label} style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '50%' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>{label}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{data.clientName || '—'}</div>
+                <div style={{ fontSize: '10px', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{data.clientAddress || ''}</div>
+                <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {data.clientGSTIN || ''}</div>
+                <div style={{ fontSize: '10px' }}>PAN: {data.clientPAN || ''}</div>
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Items Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <thead>
+          <tr style={{ background: '#e8e8e8' }}>
+            {['#','Item & Description','HSN/SAC','Tax%','Qty.','Rate/Item','Per','Amount'].map(h => (
+              <th key={h} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: h === '#' || h === 'Tax%' || h === 'Qty.' || h === 'Rate/Item' || h === 'Per' || h === 'Amount' ? 'right' : 'left', fontSize: '10px', fontWeight: 'bold' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>1</td>
+            <td style={{ border: '1px solid #000', padding: '6px' }}>{data.itemDesc || ITEM_DESC}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{HSN_PAVING}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>18.0%</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{qty || ''}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(rate)}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>-</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(taxable)}</td>
+          </tr>
+          {/* Empty rows for spacing */}
+          {[1,2].map(i => (
+            <tr key={i}><td colSpan={8} style={{ border: '1px solid #000', padding: '6px', height: '18px' }}></td></tr>
+          ))}
+          {/* Totals rows */}
+          {[
+            { label: 'Taxable Amount', value: fmt2(taxable) },
+            { label: 'CGST 9.0%',      value: fmt2(cgst) },
+            { label: 'SGST 9.0%',      value: fmt2(sgst) },
+            { label: 'Round off',       value: roundOff !== 0 ? fmt2(roundOff) : '' },
+          ].map(row => (
+            <tr key={row.label}>
+              <td colSpan={7} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontStyle: 'italic', fontSize: '10px' }}>{row.label}</td>
+              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{row.value}</td>
+            </tr>
+          ))}
+          <tr style={{ fontWeight: 'bold' }}>
+            <td colSpan={4} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontStyle: 'italic' }}>Total</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(qty)}</td>
+            <td colSpan={2} style={{ border: '1px solid #000', padding: '4px 6px' }}></td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>₹{fmt(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Amount in words */}
+      <div style={{ border: '1px solid #000', borderTop: 'none', padding: '4px 6px', fontSize: '10px' }}>
+        Amount Chargeable (in Words): <strong>{numToWords(total)}</strong> &nbsp;<em>E &amp; O.E</em>
+      </div>
+
+      {/* HSN Summary */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0' }}>
+        <thead>
+          <tr style={{ background: '#e8e8e8' }}>
+            <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'left', fontSize: '10px' }}>HSN/SAC</th>
+            <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>Taxable Value</th>
+            <th colSpan={2} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>CGST</th>
+            <th colSpan={2} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>SGST</th>
+            <th style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>Total Tax Amount</th>
+          </tr>
+          <tr style={{ background: '#f5f5f5' }}>
+            <th style={{ border: '1px solid #000', padding: '3px 6px' }}></th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px' }}></th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'center', fontSize: '10px' }}>Rate</th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', fontSize: '10px' }}>Amount</th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'center', fontSize: '10px' }}>Rate</th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px', textAlign: 'right', fontSize: '10px' }}>Amount</th>
+            <th style={{ border: '1px solid #000', padding: '3px 6px' }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', fontSize: '10px' }}>{HSN_PAVING}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxable)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>9.0</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(cgst)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>9.0</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(sgst)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxTotal)}</td>
+          </tr>
+          <tr style={{ fontWeight: 'bold', background: '#f5f5f5' }}>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', fontSize: '10px' }}>TOTAL</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxable)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>-</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(cgst)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>-</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(sgst)}</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Footer */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0' }}>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '60%' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '10px', textDecoration: 'underline', marginBottom: '2px' }}>Bank Details:</div>
+              <div style={{ fontSize: '10px' }}>Bank Name: {COMPANY.bank}</div>
+              <div style={{ fontSize: '10px' }}>Account Number: {COMPANY.account}</div>
+              <div style={{ fontSize: '10px' }}>IFSC Code: {COMPANY.ifsc}</div>
+              <div style={{ fontSize: '10px' }}>Account Name: {COMPANY.accName}</div>
+            </td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', verticalAlign: 'top' }}>
+              <div style={{ fontSize: '10px', marginBottom: '30px' }}>Authorised Signatory</div>
+              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{COMPANY.name}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Delivery Challan Template ─────────────────
+function ChallanPreview({ data }) {
+  const qty     = parseFloat(data.qty)  || 0
+  const rate    = parseFloat(data.rate) || 0
+  // Challan can have 0 rate (just for delivery tracking)
+  const taxable = parseFloat(fmt2(qty * rate))
+  const igst    = parseFloat(fmt2(taxable * 0.18))
+  const total   = taxable + igst
+
+  // Detect inter-state (IGST) vs intra-state (CGST+SGST)
+  const isInterState = data.placeOfSupply && !data.placeOfSupply.toLowerCase().includes('gujarat')
+
+  return (
+    <div className="bill-sheet" style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#000', background: '#fff', width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm', boxSizing: 'border-box' }}>
+      {/* Header */}
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '15px', borderBottom: '2px solid #000', paddingBottom: '4px', marginBottom: '6px' }}>DELIVERY CHALLAN</div>
+
+      {/* Company + Challan Info */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ width: '60px', height: '60px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#999', flexShrink: 0 }}>LOGO</div>
+                <div>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
+                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {COMPANY.gstin || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>PAN: {COMPANY.pan || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>Phone: {COMPANY.phone}</div>
+                </div>
+              </div>
+            </td>
+            <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top' }}>
+              <table style={{ width: '100%' }}>
+                <tbody>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Challan No.:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '13px', paddingBottom: '4px' }}>{data.challanNo || 'CHN1'}</td></tr>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Date:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '12px', paddingBottom: '8px' }}>{data.date ? new Date(data.date).toLocaleDateString('en-GB') : ''}</td></tr>
+                  <tr><td style={{ fontSize: '10px', color: '#555' }}>Place of Supply:</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', fontSize: '11px' }}>{data.placeOfSupply || 'Gujarat'}</td></tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Bill To / Ship To */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <tbody>
+          <tr>
+            {['Bill To', 'Ship To'].map(label => (
+              <td key={label} style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '50%' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>{label}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{data.clientName || '—'}</div>
+                <div style={{ fontSize: '10px', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{data.clientAddress || ''}</div>
+                {data.clientPhone && <div style={{ fontSize: '10px', marginTop: '3px' }}>Phone: {data.clientPhone}</div>}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Items Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '0' }}>
+        <thead>
+          <tr style={{ background: '#e8e8e8' }}>
+            {['#','Item & Description','HSN/SAC','VEHICLE NO','Tax%','Qty.','Per','Rate/Item','Amount'].map(h => (
+              <th key={h} style={{ border: '1px solid #000', padding: '4px 5px', textAlign: h === '#' || h === 'Tax%' || h === 'Qty.' || h === 'Rate/Item' || h === 'Per' || h === 'Amount' ? 'right' : 'left', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>1</td>
+            <td style={{ border: '1px solid #000', padding: '6px' }}>{data.itemDesc || ITEM_DESC}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{data.hsn || HSN_PAVING}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', fontSize: '9px' }}>{data.vehicleNo || ''}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>18.0%</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(qty)}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{data.per || ''}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(rate)}</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{rate > 0 ? fmt2(taxable) : '0.00'}</td>
+          </tr>
+          {[1,2].map(i => (
+            <tr key={i}><td colSpan={9} style={{ border: '1px solid #000', padding: '6px', height: '18px' }}></td></tr>
+          ))}
+          {[
+            { label: 'Taxable Amount', value: rate > 0 ? fmt2(taxable) : '0.00' },
+            { label: isInterState ? 'IGST 18.0%' : 'CGST 9.0%', value: rate > 0 ? fmt2(isInterState ? igst : igst/2) : '0.00' },
+            ...(!isInterState && rate > 0 ? [{ label: 'SGST 9.0%', value: fmt2(igst/2) }] : []),
+            { label: 'Round off', value: '0.00' },
+          ].map(row => (
+            <tr key={row.label}>
+              <td colSpan={8} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontStyle: 'italic', fontSize: '10px' }}>{row.label}</td>
+              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{row.value}</td>
+            </tr>
+          ))}
+          <tr style={{ fontWeight: 'bold' }}>
+            <td colSpan={5} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontStyle: 'italic' }}>Total</td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>{fmt2(qty)}</td>
+            <td colSpan={2} style={{ border: '1px solid #000', padding: '4px 6px' }}></td>
+            <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right' }}>₹{rate > 0 ? fmt(total) : '0.00'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Footer */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0' }}>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #000', padding: '40px 6px 6px', verticalAlign: 'bottom', width: '60%' }}></td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', verticalAlign: 'top' }}>
+              <div style={{ fontSize: '10px', marginBottom: '30px' }}>Authorised Signatory</div>
+              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{COMPANY.name}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Main Component ────────────────────────────
+export default function BillGenerator() {
+  const [billType, setBillType] = useState('invoice') // 'invoice' | 'challan'
+  const [preview, setPreview]   = useState(false)
+  const printRef = useRef(null)
+
+  const [form, setForm] = useState({
+    // Common
+    date:           today(),
+    placeOfSupply:  'Gujarat',
+    clientName:     '',
+    clientAddress:  '',
+    clientGSTIN:    '',
+    clientPAN:      '',
+    clientPhone:    '',
+    itemDesc:       ITEM_DESC,
+    qty:            '',
+    rate:           '',
+    per:            '',
+    hsn:            HSN_PAVING,
+    // Invoice specific
+    invoiceNo:      'INV1',
+    // Challan specific
+    challanNo:      'CHN1',
+    vehicleNo:      '',
+  })
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const handlePrint = () => {
+    const content = printRef.current
+    if (!content) return
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${billType === 'invoice' ? 'Tax Invoice' : 'Delivery Challan'} - ${billType === 'invoice' ? form.invoiceNo : form.challanNo}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #fff; }
+            @media print {
+              body { margin: 0; }
+              @page { size: A4; margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          ${content.innerHTML}
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print(); printWindow.close() }, 500)
+  }
+
+  const Field = ({ label, value, onChange, type = 'text', placeholder = '', rows }) => (
+    <div className="mb-3">
+      <label className="block text-xs text-gray-500 font-semibold mb-1">{label}</label>
+      {rows ? (
+        <textarea rows={rows} value={value} placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white resize-none" />
+      ) : (
+        <input type={type} value={value} placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white" />
+      )}
+    </div>
+  )
+
+  return (
+    <div className="max-w-lg mx-auto">
+      {/* Print styles injected globally */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .bill-sheet, .bill-sheet * { visibility: visible !important; }
+          .bill-sheet { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
+        <h1 className="text-lg font-bold text-gray-800">🧾 Bill Generator</h1>
+        <p className="text-xs text-gray-400">Tax Invoice · Delivery Challan · Print to PDF</p>
+      </div>
+
+      {/* Bill type toggle */}
+      <div className="flex gap-2 p-4 pb-0">
+        {[['invoice','📄 Tax Invoice'],['challan','🚚 Delivery Challan']].map(([k,l]) => (
+          <button key={k} onClick={() => setBillType(k)}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all
+              ${billType === k ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-white border border-gray-200 text-gray-500'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Preview toggle */}
+      <div className="flex gap-2 px-4 pt-3">
+        {[['form','✏️ Fill Form'],['preview','👁️ Preview']].map(([k,l]) => (
+          <button key={k} onClick={() => setPreview(k === 'preview')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all
+              ${(preview ? 'preview' : 'form') === k ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* FORM */}
+      {!preview && (
+        <div className="p-4 space-y-1">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-3">
+            <p className="text-xs font-bold text-orange-700 mb-1">
+              {billType === 'invoice' ? '📄 Tax Invoice' : '🚚 Delivery Challan'} — Fill the details below
+            </p>
+            <p className="text-xs text-orange-600">Switch to Preview tab to see the bill, then click Print PDF.</p>
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">📋 Bill Info</p>
+            {billType === 'invoice'
+              ? <Field label="Invoice No." value={form.invoiceNo} onChange={v => set('invoiceNo', v)} placeholder="INV1" />
+              : <Field label="Challan No." value={form.challanNo} onChange={v => set('challanNo', v)} placeholder="CHN1" />
+            }
+            <Field label="Date" value={form.date} onChange={v => set('date', v)} type="date" />
+            <Field label="Place of Supply" value={form.placeOfSupply} onChange={v => set('placeOfSupply', v)} placeholder="Gujarat" />
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">👤 Client / Bill To</p>
+            <Field label="Client Name" value={form.clientName} onChange={v => set('clientName', v)} placeholder="e.g. Samroli Vibhag Mandali" />
+            <Field label="Address" value={form.clientAddress} onChange={v => set('clientAddress', v)} placeholder="Full address..." rows={3} />
+            {billType === 'invoice' && <>
+              <Field label="Client GSTIN" value={form.clientGSTIN} onChange={v => set('clientGSTIN', v)} placeholder="22XXXXX..." />
+              <Field label="Client PAN" value={form.clientPAN} onChange={v => set('clientPAN', v)} placeholder="XXXXX1234X" />
+            </>}
+            {billType === 'challan' &&
+              <Field label="Phone" value={form.clientPhone} onChange={v => set('clientPhone', v)} placeholder="98XXXXXXXX" />
+            }
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🧱 Item Details</p>
+            <Field label="Item Description" value={form.itemDesc} onChange={v => set('itemDesc', v)} placeholder="paving block" />
+            <Field label="HSN/SAC Code" value={form.hsn} onChange={v => set('hsn', v)} placeholder="7016" />
+            {billType === 'challan' && <>
+              <Field label="Vehicle No." value={form.vehicleNo} onChange={v => set('vehicleNo', v)} placeholder="GJ05XX1234" />
+              <Field label="Per (unit)" value={form.per} onChange={v => set('per', v)} placeholder="Brass / Nos" />
+            </>}
+            <Field label="Quantity" value={form.qty} onChange={v => set('qty', v)} type="number" placeholder="15" />
+            <Field label={`Rate per Item (₹)${billType === 'challan' ? ' — leave 0 for delivery-only' : ''}`}
+              value={form.rate} onChange={v => set('rate', v)} type="number" placeholder="0" />
+
+            {/* Live calculation preview */}
+            {parseFloat(form.qty) > 0 && parseFloat(form.rate) > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 mt-2 text-xs">
+                <div className="flex justify-between"><span>Taxable:</span><span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate))}</span></div>
+                <div className="flex justify-between"><span>Tax (18%):</span><span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * 0.18)}</span></div>
+                <div className="flex justify-between border-t border-green-200 mt-1 pt-1 font-bold text-green-700">
+                  <span>Total:</span>
+                  <span>₹{fmt(Math.round(parseFloat(form.qty) * parseFloat(form.rate) * 1.18))}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => setPreview(true)}
+            className="w-full bg-orange-500 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-orange-200">
+            👁️ Preview Bill
+          </button>
+        </div>
+      )}
+
+      {/* PREVIEW */}
+      {preview && (
+        <div className="p-4">
+          {/* Print button */}
+          <button onClick={handlePrint}
+            className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-green-200 mb-4">
+            🖨️ Print / Save as PDF
+          </button>
+          <p className="text-xs text-center text-gray-400 mb-4">
+            A print dialog will open → select "Save as PDF" as destination
+          </p>
+
+          {/* Scrollable preview */}
+          <div ref={printRef} style={{ transform: 'scale(0.6)', transformOrigin: 'top center', marginBottom: '-320px' }}>
+            {billType === 'invoice'
+              ? <TaxInvoicePreview data={form} />
+              : <ChallanPreview data={form} />
+            }
+          </div>
+
+          <button onClick={() => setPreview(false)}
+            className="w-full mt-4 border border-gray-200 text-gray-500 font-bold py-3 rounded-2xl text-sm">
+            ← Back to Edit
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
