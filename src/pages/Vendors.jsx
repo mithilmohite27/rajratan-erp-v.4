@@ -1,11 +1,72 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../App.jsx'
 import { loadVendors, saveVendorEntry, saveCashFlowEntry } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
-import { MATERIAL_LIST, unitLabel } from '../lib/materials.js'
 
-const MATERIALS = ['Cement', 'Greet', 'Powder', 'Chemical', 'Color', 'Plastic', 'Reti', 'Other']
-const UNIT_BY_MATERIAL = Object.fromEntries(MATERIAL_LIST.map(m => [m.id, m.unit]))
+// ── Material list matches materials.js MATERIAL_IDS exactly ──
+// 'Color' split into Yellow/Red so material stock deduction works correctly
+const MATERIALS = [
+  { label: 'Cement',   id: 'Cement',   unit: 'bags', emoji: '🏗️' },
+  { label: 'Greet',    id: 'Greet',    unit: 'ton',  emoji: '🪨' },
+  { label: 'Powder',   id: 'Powder',   unit: 'ton',  emoji: '⚪' },
+  { label: 'Chemical', id: 'Chemical', unit: 'L',    emoji: '🧪' },
+  { label: 'Yellow',   id: 'Yellow',   unit: 'kg',   emoji: '🟡' },
+  { label: 'Red',      id: 'Red',      unit: 'kg',   emoji: '🔴' },
+  { label: 'Plastic',  id: 'Plastic',  unit: 'ml',   emoji: '🧴' },
+  { label: 'Reti',     id: 'Reti',     unit: 'ghamela', emoji: '🟫' },
+  { label: 'Other',    id: 'Other',    unit: '',     emoji: '📦' },
+]
+
+// ── Vendor name autocomplete dropdown ─────────
+function VendorAutocomplete({ value, onChange, vendorList, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  // Filter existing vendor names by what's typed
+  const filtered = vendorList
+    .map(v => v.name)
+    .filter((n, i, arr) => arr.indexOf(n) === i) // unique
+    .filter(n => n.toLowerCase().includes(value.toLowerCase()))
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        className="w-full text-base font-bold text-gray-800 outline-none bg-transparent"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-orange-200 rounded-xl shadow-lg z-50 overflow-hidden max-h-48 overflow-y-auto">
+          {filtered.map(name => (
+            <button
+              key={name}
+              type="button"
+              onMouseDown={() => { onChange(name); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-orange-50 hover:text-orange-600 border-b border-gray-50 last:border-0"
+            >
+              🏪 {name}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && value.length > 0 && filtered.length === 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2 z-50">
+          <p className="text-xs text-orange-600 font-semibold">+ New vendor will be created</p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Vendors() {
   const { accessToken } = useApp()
@@ -15,9 +76,12 @@ export default function Vendors() {
   const [saving,  setSaving]  = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [error,   setError]   = useState('')
+  const [success, setSuccess] = useState('')
+
+  const selectedMat = (id) => MATERIALS.find(m => m.id === id) || MATERIALS[0]
 
   const [invoiceForm, setInvoiceForm] = useState({
-    date: today(), vendorName: '', material: 'Cement', quantity: '', unit: 'bags', amount: '', notes: ''
+    date: today(), vendorName: '', material: 'Cement', quantity: '', amount: '', notes: ''
   })
   const [payForm, setPayForm] = useState({
     date: today(), vendorName: '', amount: '', source: 'Factory', notes: ''
@@ -31,6 +95,8 @@ export default function Vendors() {
   }
   useEffect(() => { fetchData() }, [refresh])
 
+  const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+
   // Group by vendor
   const vendors = rows.reduce((acc, r) => {
     const name = r.VendorName
@@ -43,40 +109,48 @@ export default function Vendors() {
   }, {})
   const vendorList = Object.values(vendors)
 
+  // ── SAVE INVOICE ──────────────────────────────
   const handleInvoice = async () => {
-    if (!invoiceForm.vendorName || !invoiceForm.amount) { setError('Vendor name and amount required.'); return }
-    const qty = parseFloat(invoiceForm.quantity)
-    if (!qty || qty <= 0) { setError('Quantity required — material stock increases from invoice qty.'); return }
+    if (!invoiceForm.vendorName) { setError('Vendor name is required.'); return }
+    if (!invoiceForm.amount)     { setError('Invoice amount is required.'); return }
     setSaving(true); setError('')
     try {
+      const mat = selectedMat(invoiceForm.material)
       await saveVendorEntry(accessToken, {
-        ...invoiceForm,
-        type: 'Invoice',
-        quantity: qty,
-        unit: invoiceForm.unit || UNIT_BY_MATERIAL[invoiceForm.material] || '',
-        amount: parseFloat(invoiceForm.amount),
+        date:       invoiceForm.date,
+        vendorName: invoiceForm.vendorName,
+        material:   invoiceForm.material,       // canonical ID e.g. 'Cement', 'Greet'
+        type:       'Invoice',
+        quantity:   invoiceForm.quantity ? parseFloat(invoiceForm.quantity) : '',
+        unit:       mat.unit,                   // correct unit saved → stock engine reads this
+        amount:     parseFloat(invoiceForm.amount),
+        notes:      invoiceForm.notes,
       })
       setRefresh(v => v + 1)
-      setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', quantity: '', unit: 'bags', amount: '', notes: '' })
+      setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', quantity: '', amount: '', notes: '' })
+      flash('✅ Invoice saved — Material Stock updated automatically!')
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
   }
 
-  const selectMaterial = (m) => {
-    setInvoiceForm(p => ({
-      ...p,
-      material: m,
-      unit: UNIT_BY_MATERIAL[m] || p.unit,
-    }))
-  }
-
+  // ── SAVE PAYMENT ──────────────────────────────
   const handlePayment = async () => {
-    if (!payForm.vendorName || !payForm.amount) { setError('Vendor name and amount required.'); return }
+    if (!payForm.vendorName) { setError('Select a vendor.'); return }
+    if (!payForm.amount)     { setError('Payment amount is required.'); return }
     setSaving(true); setError('')
     try {
       // 1. Save to Vendor_Ledger
-      await saveVendorEntry(accessToken, { ...payForm, material: '', type: 'Payment', amount: parseFloat(payForm.amount) })
+      await saveVendorEntry(accessToken, {
+        date:       payForm.date,
+        vendorName: payForm.vendorName,
+        material:   '',
+        type:       'Payment',
+        quantity:   '',
+        unit:       '',
+        amount:     parseFloat(payForm.amount),
+        notes:      payForm.notes,
+      })
       // 2. Sync to CashFlow — deducts from selected account
       await saveCashFlowEntry(accessToken, {
         date:        payForm.date,
@@ -88,46 +162,57 @@ export default function Vendors() {
       })
       setRefresh(v => v + 1)
       setPayForm({ date: today(), vendorName: '', amount: '', source: 'Factory', notes: '' })
+      flash('✅ Payment recorded + Cash Flow updated!')
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
   }
 
+  const currentMat = selectedMat(invoiceForm.material)
+
   return (
     <div className="max-w-lg mx-auto">
+      {/* Header */}
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
         <h1 className="text-lg font-bold text-gray-800">🧾 Vendor Ledger</h1>
         <p className="text-xs text-gray-400">Invoices with quantity auto-update Material Stock</p>
       </div>
+
+      {/* Tabs */}
       <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+4rem)] z-10">
-        {[['ledger','Ledger'],['invoice','+ Invoice'],['payment','Pay Vendor'],['history','History']].map(([k,l]) => (
+        {[['ledger','Ledger'],['+invoice','+ Invoice'],['payment','Pay Vendor'],['history','History']].map(([k,l]) => (
           <button key={k} onClick={() => { setTab(k); setError('') }}
-            className={`flex-1 py-2.5 text-xs font-semibold ${tab===k?'text-orange-500 border-b-2 border-orange-500':'text-gray-400'}`}>
+            className={`flex-1 py-2.5 text-xs font-semibold transition-colors
+              ${tab===k ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-400'}`}>
             {l}
           </button>
         ))}
       </div>
 
-      <div className="p-4 space-y-3">
-        {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">{error}</div>}
+      <div className="p-4 space-y-3 pb-8">
+        {error   && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">{error}</div>}
+        {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl p-3 font-semibold text-center">{success}</div>}
 
-        {/* LEDGER */}
+        {/* ── LEDGER ── */}
         {tab === 'ledger' && (
           loading ? <div className="text-center py-12 text-gray-400">⏳ Loading...</div>
           : vendorList.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <div className="text-4xl mb-2">🧾</div>
               <p>No vendor accounts yet.</p>
-              <button onClick={() => setTab('invoice')} className="mt-3 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold">+ Add Invoice</button>
+              <button onClick={() => setTab('+invoice')}
+                className="mt-3 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold">
+                + Add Invoice
+              </button>
             </div>
           ) : <>
-            {/* Total outstanding */}
             <div className="bg-orange-500 rounded-2xl p-4 text-white">
               <p className="text-sm opacity-80">Total Outstanding to All Vendors</p>
               <p className="text-3xl font-bold mt-1">
                 {formatINR(vendorList.reduce((s, v) => s + Math.max(0, v.invoiced - v.paid), 0))}
               </p>
             </div>
+
             {vendorList.map((v, i) => {
               const outstanding = Math.max(0, v.invoiced - v.paid)
               const pct = v.invoiced > 0 ? Math.min(100, (v.paid / v.invoiced) * 100) : 0
@@ -143,7 +228,7 @@ export default function Vendors() {
                     </span>
                   </div>
                   <div className="mt-2 mb-1 bg-gray-100 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
                   <div className="grid grid-cols-3 gap-1 text-xs text-gray-500 mt-2 text-center">
                     <div><p className="font-bold text-gray-700">{formatINR(v.invoiced)}</p><p>Invoiced</p></div>
@@ -160,105 +245,149 @@ export default function Vendors() {
           </>
         )}
 
-        {/* ADD INVOICE */}
-        {tab === 'invoice' && <>
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Log New Invoice / Shipment</div>
+        {/* ── + INVOICE ── */}
+        {tab === '+invoice' && <>
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-700">
+            📦 Entering a <strong>quantity</strong> automatically increases Material Stock balance.
+          </div>
+
+          {/* Date */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
-            <input type="date" value={invoiceForm.date} onChange={e => setInvoiceForm(p=>({...p,date:e.target.value}))}
+            <input type="date" value={invoiceForm.date}
+              onChange={e => setInvoiceForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
           </div>
+
+          {/* Vendor name — autocomplete from existing vendors */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">🏪 Vendor Name</label>
-            <input type="text" value={invoiceForm.vendorName} placeholder="e.g. Sharma Cement Depot"
-              onChange={e => setInvoiceForm(p=>({...p,vendorName:e.target.value}))}
-              className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+            <VendorAutocomplete
+              value={invoiceForm.vendorName}
+              onChange={val => setInvoiceForm(p => ({ ...p, vendorName: val }))}
+              vendorList={vendorList}
+              placeholder="e.g. Sharma Cement Depot"
+            />
           </div>
+
+          {/* Material picker */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-2">🧱 Material</label>
             <div className="flex flex-wrap gap-2">
               {MATERIALS.map(m => (
-                <button key={m} onClick={() => selectMaterial(m)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold ${invoiceForm.material===m?'bg-orange-500 text-white':'bg-gray-100 text-gray-600'}`}>
-                  {m}
+                <button key={m.id}
+                  onClick={() => setInvoiceForm(p => ({ ...p, material: m.id, quantity: '' }))}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all
+                    ${invoiceForm.material === m.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  {m.emoji} {m.label}
                 </button>
               ))}
             </div>
           </div>
-          {invoiceForm.material !== 'Other' && (
-            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
-              <label className="text-xs text-teal-700 font-semibold block mb-1">📦 Quantity received (adds to Material Stock)</label>
-              <div className="flex items-center gap-2">
-                <input type="number" inputMode="decimal" value={invoiceForm.quantity} placeholder="0"
-                  onChange={e => setInvoiceForm(p => ({ ...p, quantity: e.target.value }))}
-                  className="flex-1 text-2xl font-bold text-gray-800 outline-none bg-transparent" />
-                <span className="text-sm font-bold text-teal-600 shrink-0">{unitLabel(invoiceForm.unit)}</span>
-              </div>
-              <p className="text-xs text-teal-600 mt-1">Required for automatic stock increase in Stock → Materials</p>
+
+          {/* Quantity — unit auto-set from material */}
+          <div className="bg-teal-50 border border-teal-300 rounded-xl p-3">
+            <label className="text-xs text-teal-700 font-semibold block mb-1">
+              📦 Quantity received <span className="text-teal-500">(adds to Material Stock)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input type="number" inputMode="decimal"
+                value={invoiceForm.quantity} placeholder="0"
+                onChange={e => setInvoiceForm(p => ({ ...p, quantity: e.target.value }))}
+                className="flex-1 text-2xl font-bold text-gray-800 outline-none bg-transparent" />
+              {currentMat.unit && (
+                <span className="text-sm font-bold text-teal-600 bg-teal-100 px-3 py-1 rounded-lg shrink-0">
+                  {currentMat.unit}
+                </span>
+              )}
             </div>
-          )}
+            <p className="text-[10px] text-teal-600 mt-1">Required for automatic stock increase in Stock → Materials</p>
+          </div>
+
+          {/* Amount */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">💰 Invoice Amount (₹)</label>
-            <input type="number" inputMode="decimal" value={invoiceForm.amount} placeholder="0"
-              onChange={e => setInvoiceForm(p=>({...p,amount:e.target.value}))}
+            <input type="number" inputMode="decimal"
+              value={invoiceForm.amount} placeholder="0"
+              onChange={e => setInvoiceForm(p => ({ ...p, amount: e.target.value }))}
               className="w-full text-2xl font-bold text-gray-800 outline-none bg-transparent" />
           </div>
+
+          {/* Notes */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">📝 Notes</label>
-            <input type="text" value={invoiceForm.notes} placeholder="e.g. 50 bags cement delivered"
-              onChange={e => setInvoiceForm(p=>({...p,notes:e.target.value}))}
+            <input type="text" value={invoiceForm.notes}
+              placeholder="e.g. 50 bags cement delivered"
+              onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
           </div>
+
           <button onClick={handleInvoice} disabled={saving}
-            className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg">
+            className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-orange-200">
             {saving ? '⏳ Saving...' : '💾 Save Invoice'}
           </button>
         </>}
 
-        {/* PAYMENT */}
+        {/* ── PAY VENDOR ── */}
         {tab === 'payment' && <>
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Record Vendor Payment</div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
-            <input type="date" value={payForm.date} onChange={e => setPayForm(p=>({...p,date:e.target.value}))}
+            <input type="date" value={payForm.date}
+              onChange={e => setPayForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
           </div>
+
+          {/* Vendor — dropdown of existing + free type */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-2">🏪 Vendor</label>
             {vendorList.length > 0 ? (
-              <select value={payForm.vendorName} onChange={e => setPayForm(p=>({...p,vendorName:e.target.value}))}
-                className="w-full text-base font-bold text-gray-800 outline-none bg-transparent">
+              <select value={payForm.vendorName}
+                onChange={e => setPayForm(p => ({ ...p, vendorName: e.target.value }))}
+                className="w-full text-base font-bold text-gray-800 outline-none bg-transparent mb-2">
                 <option value="">— Select Vendor —</option>
-                {vendorList.map(v => <option key={v.name} value={v.name}>{v.name} (owes {formatINR(Math.max(0,v.invoiced-v.paid))})</option>)}
+                {vendorList.map(v => (
+                  <option key={v.name} value={v.name}>
+                    {v.name} (owes {formatINR(Math.max(0, v.invoiced - v.paid))})
+                  </option>
+                ))}
               </select>
             ) : (
               <input type="text" value={payForm.vendorName} placeholder="Vendor name"
-                onChange={e => setPayForm(p=>({...p,vendorName:e.target.value}))}
+                onChange={e => setPayForm(p => ({ ...p, vendorName: e.target.value }))}
                 className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
             )}
           </div>
+
+          {/* Amount */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">💸 Payment Amount (₹)</label>
-            <input type="number" inputMode="decimal" value={payForm.amount} placeholder="0"
-              onChange={e => setPayForm(p=>({...p,amount:e.target.value}))}
+            <input type="number" inputMode="decimal"
+              value={payForm.amount} placeholder="0"
+              onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))}
               className="w-full text-2xl font-bold text-gray-800 outline-none bg-transparent" />
+            {/* Show outstanding for selected vendor */}
+            {payForm.vendorName && vendors[payForm.vendorName] && (
+              <p className="text-xs text-orange-600 mt-1 font-semibold">
+                Outstanding: {formatINR(Math.max(0, vendors[payForm.vendorName].invoiced - vendors[payForm.vendorName].paid))}
+              </p>
+            )}
           </div>
 
-          {/* Account source — syncs to CashFlow */}
+          {/* Account source */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-2">🏦 Pay From Which Account?</label>
             <div className="grid grid-cols-2 gap-2">
               {[['Factory','🏭 Factory Account'],['External','💼 External / Owner']].map(([k,l]) => (
-                <button key={k} onClick={() => setPayForm(p=>({...p,source:k}))}
+                <button key={k} onClick={() => setPayForm(p => ({ ...p, source: k }))}
                   className={`py-3 rounded-xl text-xs font-bold transition-all
-                    ${payForm.source===k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-gray-50 border border-gray-200 text-gray-600'}`}>
+                    ${payForm.source === k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-gray-50 border border-gray-200 text-gray-600'}`}>
                   {l}
                 </button>
               ))}
             </div>
             {payForm.amount > 0 && (
               <p className="text-xs text-orange-600 mt-2 font-semibold">
-                {formatINR(payForm.amount)} will be deducted from <strong>{payForm.source}</strong> account in Cash Flow
+                {formatINR(parseFloat(payForm.amount))} will be deducted from <strong>{payForm.source}</strong> account in Cash Flow
               </p>
             )}
           </div>
@@ -266,38 +395,37 @@ export default function Vendors() {
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-500 block mb-1">📝 Notes</label>
             <input type="text" value={payForm.notes} placeholder="Payment reference..."
-              onChange={e => setPayForm(p=>({...p,notes:e.target.value}))}
+              onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
           </div>
+
           <button onClick={handlePayment} disabled={saving}
             className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-green-200">
             {saving ? '⏳ Saving...' : '✅ Record Payment + Deduct from Cash Flow'}
           </button>
         </>}
 
-        {/* HISTORY */}
+        {/* ── HISTORY ── */}
         {tab === 'history' && (
           loading ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
-          : [...rows].reverse().map((r, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-800">{r.VendorName}</span>
-                <span className={`text-sm font-bold ${r.Type==='Payment'?'text-green-500':'text-red-400'}`}>
-                  {r.Type==='Payment'?'Paid':'Invoice'} {formatINR(r.Amount)}
-                </span>
-              </div>
-              <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
-                <span>{r.Date}</span>
-                {r.Material && <span>{r.Material}</span>}
-                {r.Quantity && (
-                  <span className="text-teal-600 font-semibold">
-                    +{r.Quantity} {unitLabel(r.Unit || UNIT_BY_MATERIAL[r.Material] || '')}
+          : rows.length === 0
+            ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2">📋</div><p>No entries yet.</p></div>
+            : [...rows].reverse().map((r, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-800">{r.VendorName}</span>
+                  <span className={`text-sm font-bold ${r.Type === 'Payment' ? 'text-green-500' : 'text-red-400'}`}>
+                    {r.Type === 'Payment' ? 'Paid' : 'Invoice'} {formatINR(r.Amount)}
                   </span>
-                )}
-                {r.Notes && <span>{r.Notes}</span>}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 flex gap-3 flex-wrap">
+                  <span>{r.Date}</span>
+                  {r.Material && <span className="bg-gray-100 px-2 py-0.5 rounded-full">{r.Material}</span>}
+                  {r.Quantity && r.Unit && <span className="bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-semibold">{r.Quantity} {r.Unit}</span>}
+                  {r.Notes && <span>{r.Notes}</span>}
+                </div>
               </div>
-            </div>
-          ))
+            ))
         )}
       </div>
     </div>
