@@ -1,3 +1,11 @@
+import {
+  MATERIAL_IDS,
+  MATERIAL_UNITS,
+  normalizeVendorMaterial,
+  normalizeToStockUnit,
+  consumptionFromProductionRow,
+} from './materials.js'
+
 // ─────────────────────────────────────────────
 //  sheets.js  —  Complete Google Sheets data layer
 //  New tabs: Production_Variants, Opening_Stock
@@ -423,9 +431,18 @@ export async function saveCashFlowEntry(accessToken, entry) {
 export async function loadVendors(accessToken) { return loadTab(accessToken, 'Vendor_Ledger') }
 
 export async function saveVendorEntry(accessToken, entry) {
-  await ensureHeaders(accessToken, 'Vendor_Ledger', ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Vendor_Ledger', [
+    'Date', 'VendorName', 'Material', 'Type', 'Quantity', 'Unit', 'Amount', 'Notes'
+  ])
   await appendRow(accessToken, 'Vendor_Ledger!A:A', [
-    entry.date, entry.vendorName, entry.material, entry.type, entry.amount, entry.notes || ''
+    entry.date,
+    entry.vendorName,
+    entry.material  || '',
+    entry.type,
+    (entry.quantity != null && entry.quantity !== '') ? parseFloat(entry.quantity) : '',
+    entry.unit      || '',
+    entry.amount,
+    entry.notes     || '',
   ])
 }
 
@@ -588,7 +605,7 @@ export async function seedStaticData(accessToken, today) {
   await ensureHeaders(accessToken, 'CRM_Log',              ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes'])
   await ensureHeaders(accessToken, 'QC_Log',               ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'])
   await ensureHeaders(accessToken, 'CashFlow_Log',         ['Date', 'Type', 'Source', 'Amount', 'Description', 'VendorName'])
-  await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Quantity', 'Unit', 'Amount', 'Notes'])
   await ensureHeaders(accessToken, 'Payroll_Log',          ['Date', 'WorkerName', 'Type', 'Blocks', 'WageRate', 'Amount', 'Notes'])
 
   return true
@@ -630,14 +647,6 @@ export async function computeInventoryDebug(accessToken) {
 //  Tab: Opening_Material_Stock
 //  Schema: Date | Type | Material | Quantity | Unit | Notes
 // ─────────────────────────────────────────────
-
-import {
-  MATERIAL_IDS,
-  MATERIAL_UNITS,
-  normalizeVendorMaterial,
-  normalizeToStockUnit,
-  consumptionFromProductionRow,
-} from './materials.js'
 
 export async function saveOpeningMaterialStock(accessToken, entries) {
   await ensureHeaders(accessToken, 'Opening_Material_Stock', [
