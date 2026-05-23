@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../App.jsx'
+import { loadCRM } from '../lib/sheets.js'
 import { today } from '../lib/formulas.js'
 
 // ── Company Details (fixed) ───────────────────
@@ -352,9 +353,53 @@ function ChallanPreview({ data }) {
 
 // ── Main Component ────────────────────────────
 export default function BillGenerator() {
+  const { accessToken } = useApp()
   const [billType, setBillType] = useState('invoice') // 'invoice' | 'challan'
   const [preview, setPreview]   = useState(false)
   const printRef = useRef(null)
+
+  // ── CRM sync ────────────────────────────────
+  const [clients, setClients]       = useState([])   // unique clients from CRM
+  const [crmLoading, setCrmLoading] = useState(false)
+  const [selectedClient, setSelectedClient] = useState('')
+
+  useEffect(() => {
+    if (!accessToken) return
+    setCrmLoading(true)
+    loadCRM(accessToken).catch(() => []).then(rows => {
+      // Build unique client list with their latest data
+      const map = {}
+      rows.forEach(r => {
+        if (!r.ClientName) return
+        if (!map[r.ClientName]) {
+          map[r.ClientName] = {
+            name:     r.ClientName,
+            location: r.Location || '',
+            rate:     r.Rate     || '',
+          }
+        }
+        // Keep latest rate if available
+        if (r.Rate) map[r.ClientName].rate = r.Rate
+      })
+      setClients(Object.values(map))
+      setCrmLoading(false)
+    })
+  }, [accessToken])
+
+  // Auto-fill form when client selected from CRM
+  const handleClientSelect = (clientName) => {
+    setSelectedClient(clientName)
+    if (!clientName) return
+    const c = clients.find(x => x.name === clientName)
+    if (!c) return
+    setForm(p => ({
+      ...p,
+      clientName:    c.name,
+      clientAddress: c.location || '',
+      rate:          c.rate     || p.rate,
+      placeOfSupply: c.location ? (c.location.toLowerCase().includes('gujarat') ? 'Gujarat' : c.location) : p.placeOfSupply,
+    }))
+  }
 
   const [form, setForm] = useState({
     // Common
@@ -468,6 +513,34 @@ export default function BillGenerator() {
               {billType === 'invoice' ? '📄 Tax Invoice' : '🚚 Delivery Challan'} — Fill the details below
             </p>
             <p className="text-xs text-orange-600">Switch to Preview tab to see the bill, then click Print PDF.</p>
+          </div>
+
+          {/* ── CRM Client Picker ── */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+              🤝 Pick from CRM Clients {crmLoading && <span className="text-orange-400 font-normal">(loading...)</span>}
+            </p>
+            {clients.length > 0 ? (
+              <>
+                <select value={selectedClient}
+                  onChange={e => handleClientSelect(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-orange-400 bg-white mb-2">
+                  <option value="">— Select existing client —</option>
+                  {clients.map(c => (
+                    <option key={c.name} value={c.name}>{c.name}{c.location ? ` · ${c.location}` : ''}</option>
+                  ))}
+                </select>
+                {selectedClient && (
+                  <div className="bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-xs text-teal-700 font-semibold">
+                    ✅ Client auto-filled from CRM — edit below if needed
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-gray-400">
+                {crmLoading ? '⏳ Loading CRM clients...' : 'No clients in CRM yet. Fill manually below.'}
+              </p>
+            )}
           </div>
 
           <div className="bg-white border border-gray-100 rounded-2xl p-4">
