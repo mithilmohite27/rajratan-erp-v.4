@@ -110,11 +110,16 @@ export default function Production() {
   const [saved,   setSaved]   = useState(false)
   const [error,   setError]   = useState('')
   const [history, setHistory] = useState([])
-  const [lastCalc, setLastCalc] = useState(null) // snapshot after save
+  const [lastCalc, setLastCalc] = useState(null)
+  const [shareOverride, setShareOverride] = useState({ yellow: '', red: '' }) // snapshot after save
 
   // Live calcs
   const calc = calcProduction(inputs, config)
   const cost = calcDailyCost(inputs, calc, config)
+  const effectiveYellowShare = shareOverride.yellow !== '' ? parseFloat(shareOverride.yellow) || 0 : calc.yellowShare
+  const effectiveRedShare    = shareOverride.red    !== '' ? parseFloat(shareOverride.red)    || 0 : calc.redShare
+  const effectiveYellowFinal = (parseFloat(inputs.yellowKG) || 0) * effectiveYellowShare
+  const effectiveRedFinal    = (parseFloat(inputs.redKG)    || 0) * effectiveRedShare
 
   const set = key => val => setInputs(p => ({ ...p, [key]: val }))
 
@@ -147,7 +152,7 @@ export default function Production() {
         mortarCement: inputs.mortarCement, colorCement: inputs.colorCement,
         totalCement: calc.totalCement, greet: calc.greet, powder: calc.powder,
         chemical: calc.chemical, yellowKG: inputs.yellowKG, redKG: inputs.redKG,
-        yellowFinal: calc.yellowFinal, redFinal: calc.redFinal,
+        yellowFinal: effectiveYellowFinal, redFinal: effectiveRedFinal,
         reti: calc.reti, plastic: calc.plastic, misc: inputs.misc,
         cementCost: cost.cementCost, greetCost: cost.greetCost,
         powderCost: cost.powderCost, chemicalCost: cost.chemicalCost,
@@ -168,10 +173,11 @@ export default function Production() {
       await saveProductionVariants(accessToken, variantRows)
 
       // Snapshot calc & cost BEFORE clearing inputs — results/cost tab reads snapshot
-      setLastCalc({ calc, cost, blocks: inputs.blocks, date: inputs.date })
+      setLastCalc({ calc: { ...calc, yellowFinal: effectiveYellowFinal, redFinal: effectiveRedFinal }, cost, blocks: inputs.blocks, date: inputs.date })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
       setVariants(emptyVariants())
+      setShareOverride({ yellow: '', red: '' })
       setInputs({ date: today(), blocks: '', mortarCement: '', colorCement: '', yellowKG: '', redKG: '', misc: config.miscDefault || 1000 })
       setTab('results')
     } catch (e) { setError('Save failed: ' + e.message) }
@@ -214,10 +220,26 @@ export default function Production() {
           <Field label="📊 Total Cement" value={calc.totalCement || ''} readOnly unit="bags" highlight />
 
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-1">Color Pigment</div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 px-1">
-            <span>Yellow Share: <strong className="text-yellow-600">{calc.yellowShare} bags</strong></span>
-            <span>Red Share: <strong className="text-red-600">{calc.redShare} bags</strong></span>
-          </div>
+          <div className="grid grid-cols-2 gap-2">
+  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+    <label className="text-xs text-yellow-600 font-semibold block mb-1">🟡 Yellow Share (bags)</label>
+    <input type="number" inputMode="decimal"
+      value={shareOverride.yellow}
+      placeholder={String(calc.yellowShare)}
+      onChange={e => setShareOverride(p => ({ ...p, yellow: e.target.value }))}
+      className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+    <p className="text-[10px] text-yellow-500 mt-0.5">Auto: {calc.yellowShare} bags</p>
+  </div>
+  <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+    <label className="text-xs text-red-600 font-semibold block mb-1">🔴 Red Share (bags)</label>
+    <input type="number" inputMode="decimal"
+      value={shareOverride.red}
+      placeholder={String(calc.redShare)}
+      onChange={e => setShareOverride(p => ({ ...p, red: e.target.value }))}
+      className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+    <p className="text-[10px] text-red-500 mt-0.5">Auto: {calc.redShare} bags</p>
+  </div>
+</div>
           <Field label="🟡 Yellow Color KG" value={inputs.yellowKG} onChange={set('yellowKG')} unit="kg" />
           <Field label="🔴 Red Color KG"    value={inputs.redKG}    onChange={set('redKG')}    unit="kg" />
 
