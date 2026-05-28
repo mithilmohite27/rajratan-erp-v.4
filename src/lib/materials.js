@@ -159,7 +159,7 @@ export const MATERIAL_UNITS = {
   Chemical: 'L',
   Yellow:   'kg',
   Red:      'kg',
-  Black:    'kg'
+  Black:    'kg',
   Reti:     'ghamela',
   Plastic:  'ml',
 }
