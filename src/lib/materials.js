@@ -5,7 +5,7 @@
 
 /** Canonical material IDs — must match computeMaterialInventory keys in sheets.js */
 export const MATERIAL_IDS = [
-  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Reti', 'Plastic'
+  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'Reti', 'Plastic'
 ]
 
 /** Full metadata list used by MaterialStock.jsx UI */
@@ -57,6 +57,14 @@ export const MATERIAL_LIST = [
     unit:  'kg',
     color: 'text-red-600',
     bg:    'bg-red-50 border-red-200',
+  },
+  {
+    id:    'Black',
+    label: 'Black Color',
+    emoji: '⚫',
+    unit:  'kg',
+    color: 'text-gray-800',
+    bg:    'bg-gray-100 border-gray-300',
   },
   {
     id:    'Reti',
@@ -113,6 +121,7 @@ export function normalizeVendorMaterial(raw) {
   if (s.includes('chemical')) return 'Chemical'
   if (s.includes('yellow'))   return 'Yellow'
   if (s.includes('red'))      return 'Red'
+  if (s.includes('black'))    return 'Black'
   if (s.includes('reti'))     return 'Reti'
   if (s.includes('plastic'))  return 'Plastic'
   return null
@@ -136,6 +145,7 @@ export function consumptionFromProductionRow(row) {
     Chemical: parseFloat(row.Chemical_L) || 0,
     Yellow:   parseFloat(row.YellowKG)   || 0,
     Red:      parseFloat(row.RedKG)      || 0,
+    Black:    parseFloat(row.BlackKG)    || 0,
     Reti:     parseFloat(row.Reti)       || 0,
     Plastic:  parseFloat(row.Plastic_ml) || 0,
   }
@@ -149,6 +159,7 @@ export const MATERIAL_UNITS = {
   Chemical: 'L',
   Yellow:   'kg',
   Red:      'kg',
+  Black:    'kg'
   Reti:     'ghamela',
   Plastic:  'ml',
 }
