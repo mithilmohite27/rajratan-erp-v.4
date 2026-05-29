@@ -15,7 +15,7 @@ const EXTERNAL_MATERIALS = MATERIAL_LIST.filter(m =>
   ['Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'Reti', 'Plastic'].includes(m.id)
 )
 
-const REASONS = ['External Sale', 'Personal Use', 'Gifted', 'Damaged / Waste', 'Other']
+const REASONS = ['External Sale', 'Personal Use', 'Damaged / Waste', 'Other']
 
 function SourceRow({ label, count, ok }) {
   return (
@@ -565,7 +565,7 @@ export default function MaterialStock() {
                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;− External_Material_Usage
                   </div>
                   <p className="text-xs text-gray-500">
-                    External usage = cement sold outside factory, personal use, gifted, or damaged material recorded via the External tab.
+                    External usage = cement sold outside factory, personal use, or damaged material recorded via the External tab.
                   </p>
                 </div>
                 <div className="bg-white border border-gray-100 rounded-xl p-4">
