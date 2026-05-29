@@ -274,7 +274,7 @@ export async function saveProductionEntry(accessToken, entry) {
   ])
   await appendRow(accessToken, 'Production_Log!A:A', [
     entry.date,        entry.blocks,      entry.mortarCement, entry.colorCement,
-    entry.totalCement, entry.greet/1000,       entry.powder/1000,       entry.chemical,
+    entry.totalCement, entry.greet,       entry.powder,       entry.chemical,
     entry.yellowKG,    entry.redKG,       entry.yellowFinal,  entry.redFinal,
     entry.reti,        entry.plastic,     entry.misc,
     entry.cementCost,  entry.greetCost,   entry.powderCost,   entry.chemicalCost,
@@ -607,6 +607,7 @@ export async function seedStaticData(accessToken, today) {
   await ensureHeaders(accessToken, 'CashFlow_Log',         ['Date', 'Type', 'Source', 'Amount', 'Description', 'VendorName'])
   await ensureHeaders(accessToken, 'Vendor_Ledger',        ['Date', 'VendorName', 'Material', 'Type', 'Quantity', 'Unit', 'Amount', 'Notes'])
   await ensureHeaders(accessToken, 'Payroll_Log',          ['Date', 'WorkerName', 'Type', 'Blocks', 'WageRate', 'Amount', 'Notes'])
+  await ensureHeaders(accessToken, 'External_Material_Usage', ['Date', 'Material', 'Quantity', 'Unit', 'Reason', 'Notes'])
 
   return true
 }
@@ -733,11 +734,30 @@ export function aggregateProductionConsumption(productionRows) {
 //    - SUM(Production_Log consumption per material)
 // ─────────────────────────────────────────────
 
+export async function loadExternalMaterialUsage(accessToken) {
+  return loadTab(accessToken, 'External_Material_Usage')
+}
+
+export async function saveExternalMaterialUsage(accessToken, entry) {
+  await ensureHeaders(accessToken, 'External_Material_Usage', [
+    'Date', 'Material', 'Quantity', 'Unit', 'Reason', 'Notes'
+  ])
+  await appendRow(accessToken, 'External_Material_Usage!A:A', [
+    entry.date,
+    entry.material,
+    parseFloat(entry.quantity) || 0,
+    entry.unit   || '',
+    entry.reason || '',
+    entry.notes  || '',
+  ])
+}
+
 export async function computeMaterialInventory(accessToken) {
-  const [opening, purchases, production] = await Promise.all([
+  const [opening, purchases, production, external] = await Promise.all([
     getOpeningMaterialMap(accessToken).catch(() => ({})),
     loadMaterialPurchases(accessToken).catch(() => []),
     loadProduction(accessToken).catch(() => []),
+    loadExternalMaterialUsage(accessToken).catch(() => []),
   ])
 
   const consumed = aggregateProductionConsumption(production)
@@ -752,13 +772,23 @@ export async function computeMaterialInventory(accessToken) {
         0
       )
     const used = consumed[material] || 0
-    const stock = Math.max(0, openingQty + purchased - used)
+
+    // External usage — sold/used outside factory, deducted from stock
+    const externalUsed = external
+      .filter(r => normalizeVendorMaterial(r.Material) === material)
+      .reduce(
+        (s, r) => s + normalizeToStockUnit(r.Quantity, r.Unit, material),
+        0
+      )
+
+    const stock = Math.max(0, openingQty + purchased - used - externalUsed)
 
     result[material] = {
-      opening:   roundMat(openingQty),
-      purchased: roundMat(purchased),
-      consumed:  roundMat(used),
-      stock:     roundMat(stock),
+      opening:      roundMat(openingQty),
+      purchased:    roundMat(purchased),
+      consumed:     roundMat(used),
+      externalUsed: roundMat(externalUsed),
+      stock:        roundMat(stock),
     }
   })
 
