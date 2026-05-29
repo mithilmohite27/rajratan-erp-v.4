@@ -15,7 +15,7 @@ const EXTERNAL_MATERIALS = MATERIAL_LIST.filter(m =>
   ['Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'Reti', 'Plastic'].includes(m.id)
 )
 
-const REASONS = ['External Sale', 'Personal Use', 'Damaged / Waste', 'Other']
+const REASONS = ['Block Fitting', 'External Sale', 'Damaged / Waste', 'Other']
 
 function SourceRow({ label, count, ok }) {
   return (
