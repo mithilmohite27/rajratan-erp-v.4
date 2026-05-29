@@ -274,7 +274,7 @@ export async function saveProductionEntry(accessToken, entry) {
   ])
   await appendRow(accessToken, 'Production_Log!A:A', [
     entry.date,        entry.blocks,      entry.mortarCement, entry.colorCement,
-    entry.totalCement, entry.greet/1000,       entry.powder/1000,       entry.chemical,
+    entry.totalCement, entry.greet,       entry.powder,       entry.chemical,
     entry.yellowKG,    entry.redKG,       entry.yellowFinal,  entry.redFinal,
     entry.reti,        entry.plastic,     entry.misc,
     entry.cementCost,  entry.greetCost,   entry.powderCost,   entry.chemicalCost,
