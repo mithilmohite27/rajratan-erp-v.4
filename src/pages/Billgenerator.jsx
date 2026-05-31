@@ -453,11 +453,16 @@ export default function BillGenerator() {
   const handlePrint = () => {
     const el = printRef.current
     if (!el) return
-    const printHTML = el.innerHTML.replace(
-      /src="\/rajratan_enterprises_logo\.svg"/g,
-      `src="${window.location.origin}/rajratan_enterprises_logo.svg"`
+  
+    const logoUrl = `${window.location.origin}/rajratan_enterprises_logo.svg`
+  
+    const printHTML = el.innerHTML.replaceAll(
+      '/rajratan_enterprises_logo.svg',
+      logoUrl
     )
+  
     const printWindow = window.open('', '_blank', 'width=900,height=700')
+  
     printWindow.document.write(`
       <html>
         <head>
@@ -465,6 +470,7 @@ export default function BillGenerator() {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { background: #fff; }
+            img { display: block; }
             @media print {
               body { margin: 0; }
               @page { size: A4; margin: 0; }
@@ -473,9 +479,19 @@ export default function BillGenerator() {
         </head>
         <body>
           ${printHTML}
+  
+          <script>
+            window.onload = function () {
+              setTimeout(function () {
+                window.print()
+                window.close()
+              }, 1500)
+            }
+          </script>
         </body>
       </html>
     `)
+  
     printWindow.document.close()
   }
 
