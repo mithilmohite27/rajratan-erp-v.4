@@ -477,8 +477,6 @@ export default function BillGenerator() {
       </html>
     `)
     printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => { printWindow.print(); printWindow.close() }, 500)
   }
 
 
