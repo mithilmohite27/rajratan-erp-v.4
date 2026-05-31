@@ -451,8 +451,12 @@ export default function BillGenerator() {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const handlePrint = () => {
-    const content = printRef.current
-    if (!content) return
+    const el = printRef.current
+    if (!el) return
+    const printHTML = el.innerHTML.replace(
+      /src="\/rajratan_enterprises_logo\.svg"/g,
+      `src="${window.location.origin}/rajratan_enterprises_logo.svg"`
+    )
     const printWindow = window.open('', '_blank', 'width=900,height=700')
     printWindow.document.write(`
       <html>
@@ -468,7 +472,7 @@ export default function BillGenerator() {
           </style>
         </head>
         <body>
-          ${content.innerHTML}
+          ${printHTML}
         </body>
       </html>
     `)
