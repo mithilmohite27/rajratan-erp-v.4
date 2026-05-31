@@ -7,12 +7,12 @@ import { today } from '../lib/formulas.js'
 const COMPANY = {
   name:    'RAJ RATAN ENTERPRISE',
   address: 'H.NO.628, CHUNKHADA FALIYU HANUMANBARI\nHANUMANBARI 396580\nGujarat, India',
-  gstin:   '',   // fill your GSTIN
-  pan:     '',   // fill your PAN
+  gstin:   '24AOUPM1117L1ZP',
+  pan:     'AOUPM1117L',   
   phone:   '8141680323',
-  bank:    '',   // Bank name
-  account: '',   // Account number
-  ifsc:    '',   // IFSC code
+  bank:    'BARODA GUJARAT GRAMIN BANK',   // Bank name
+  account: '30670200000471',   // Account number
+  ifsc:    'BARB0BGGBXX',   // IFSC code
   accName: 'RAJ RATAN ENTERPRISE',
 }
 
@@ -258,7 +258,18 @@ function ChallanPreview({ data }) {
           <tr>
             <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                <div style={{ width: '60px', height: '60px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#999', flexShrink: 0 }}>LOGO</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <img
+  src="/rajratan_enterprises_logo.svg"
+  alt="Raj Ratan Enterprise Logo"
+  style={{
+    width: '60px',
+    height: '60px',
+    objectFit: 'contain',
+    flexShrink: 0
+  }}
+/>
+</div>
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
                   <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
