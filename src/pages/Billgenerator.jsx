@@ -8,11 +8,11 @@ const COMPANY = {
   name:    'RAJ RATAN ENTERPRISE',
   address: 'H.NO.628, CHUNKHADA FALIYU HANUMANBARI\nHANUMANBARI 396580\nGujarat, India',
   gstin:   '24AOUPM1117L1ZP',
-  pan:     'AOUPM1117L',   
+  pan:     'AOUPM1117L',
   phone:   '8141680323',
-  bank:    'BARODA GUJARAT GRAMIN BANK',   // Bank name
-  account: '30670200000471',   // Account number
-  ifsc:    'BARB0BGGBXX',   // IFSC code
+  bank:    'BARODA GUJARAT GRAMIN BANK',
+  account: '30670200000471',
+  ifsc:    'BARB0BGGBXX',
   accName: 'RAJ RATAN ENTERPRISE',
 }
 
@@ -69,16 +69,11 @@ function TaxInvoicePreview({ data }) {
           <tr>
             <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <img
-  src="/rajratan_enterprises_logo.svg"
-  alt="Raj Ratan Enterprise Logo"
-  style={{
-    width: '60px',
-    height: '60px',
-    objectFit: 'contain',
-    flexShrink: 0
-  }}
-/>
+                <img
+                  src="/rajratan_enterprises_logo.svg"
+                  alt="Raj Ratan Enterprise Logo"
+                  style={{ width: '60px', height: '60px', objectFit: 'contain', flexShrink: 0 }}
+                />
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
                   <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
@@ -258,18 +253,11 @@ function ChallanPreview({ data }) {
           <tr>
             <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <img
-  src="/rajratan_enterprises_logo.svg"
-  alt="Raj Ratan Enterprise Logo"
-  style={{
-    width: '60px',
-    height: '60px',
-    objectFit: 'contain',
-    flexShrink: 0
-  }}
-/>
-</div>
+                <img
+                  src="/rajratan_enterprises_logo.svg"
+                  alt="Raj Ratan Enterprise Logo"
+                  style={{ width: '60px', height: '60px', objectFit: 'contain', flexShrink: 0 }}
+                />
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
                   <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
@@ -372,6 +360,24 @@ function ChallanPreview({ data }) {
 }
 
 // ── Main Component ────────────────────────────
+// ── Reusable Field component — defined OUTSIDE to prevent focus loss on re-render ──
+function Field({ label, value, onChange, type = 'text', placeholder = '', rows }) {
+  return (
+    <div className="mb-3">
+      <label className="block text-xs text-gray-500 font-semibold mb-1">{label}</label>
+      {rows ? (
+        <textarea rows={rows} value={value} placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white resize-none" />
+      ) : (
+        <input type={type} value={value} placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white" />
+      )}
+    </div>
+  )
+}
+
 export default function BillGenerator() {
   const { accessToken } = useApp()
   const [billType, setBillType] = useState('invoice') // 'invoice' | 'challan'
@@ -471,20 +477,7 @@ export default function BillGenerator() {
     setTimeout(() => { printWindow.print(); printWindow.close() }, 500)
   }
 
-  const Field = ({ label, value, onChange, type = 'text', placeholder = '', rows }) => (
-    <div className="mb-3">
-      <label className="block text-xs text-gray-500 font-semibold mb-1">{label}</label>
-      {rows ? (
-        <textarea rows={rows} value={value} placeholder={placeholder}
-          onChange={e => onChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white resize-none" />
-      ) : (
-        <input type={type} value={value} placeholder={placeholder}
-          onChange={e => onChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-orange-400 bg-white" />
-      )}
-    </div>
-  )
+
 
   return (
     <div className="max-w-lg mx-auto">
@@ -527,8 +520,8 @@ export default function BillGenerator() {
 
       {/* FORM */}
       {!preview && (
-        <div className="p-4 space-y-1">
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-3">
+        <div className="p-4 space-y-3">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
             <p className="text-xs font-bold text-orange-700 mb-1">
               {billType === 'invoice' ? '📄 Tax Invoice' : '🚚 Delivery Challan'} — Fill the details below
             </p>
@@ -544,7 +537,7 @@ export default function BillGenerator() {
               <>
                 <select value={selectedClient}
                   onChange={e => handleClientSelect(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-orange-400 bg-white mb-2">
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-800 outline-none bg-white mb-2">
                   <option value="">— Select existing client —</option>
                   {clients.map(c => (
                     <option key={c.name} value={c.name}>{c.name}{c.location ? ` · ${c.location}` : ''}</option>
@@ -563,44 +556,178 @@ export default function BillGenerator() {
             )}
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-2xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">📋 Bill Info</p>
-            {billType === 'invoice'
-              ? <Field label="Invoice No." value={form.invoiceNo} onChange={v => set('invoiceNo', v)} placeholder="INV1" />
-              : <Field label="Challan No." value={form.challanNo} onChange={v => set('challanNo', v)} placeholder="CHN1" />
-            }
-            <Field label="Date" value={form.date} onChange={v => set('date', v)} type="date" />
-            <Field label="Place of Supply" value={form.placeOfSupply} onChange={v => set('placeOfSupply', v)} placeholder="Gujarat" />
+          {/* ── Bill Info ── */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">📋 Bill Info</p>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">
+                {billType === 'invoice' ? 'Invoice No.' : 'Challan No.'}
+              </label>
+              <input
+                type="text"
+                value={billType === 'invoice' ? form.invoiceNo : form.challanNo}
+                placeholder={billType === 'invoice' ? 'INV1' : 'CHN1'}
+                onChange={e => setForm(p => ({ ...p, [billType === 'invoice' ? 'invoiceNo' : 'challanNo']: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Date</label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Place of Supply</label>
+              <input
+                type="text"
+                value={form.placeOfSupply}
+                placeholder="Gujarat"
+                onChange={e => setForm(p => ({ ...p, placeOfSupply: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-2xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">👤 Client / Bill To</p>
-            <Field label="Client Name" value={form.clientName} onChange={v => set('clientName', v)} placeholder="e.g. Samroli Vibhag Mandali" />
-            <Field label="Address" value={form.clientAddress} onChange={v => set('clientAddress', v)} placeholder="Full address..." rows={3} />
-            {billType === 'invoice' && <>
-              <Field label="Client GSTIN" value={form.clientGSTIN} onChange={v => set('clientGSTIN', v)} placeholder="22XXXXX..." />
-              <Field label="Client PAN" value={form.clientPAN} onChange={v => set('clientPAN', v)} placeholder="XXXXX1234X" />
-            </>}
-            {billType === 'challan' &&
-              <Field label="Phone" value={form.clientPhone} onChange={v => set('clientPhone', v)} placeholder="98XXXXXXXX" />
-            }
+          {/* ── Client Info ── */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">👤 Client / Bill To</p>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Client Name</label>
+              <input
+                type="text"
+                value={form.clientName}
+                placeholder="e.g. Samroli Vibhag Mandali"
+                onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Address</label>
+              <textarea
+                rows={3}
+                value={form.clientAddress}
+                placeholder="Full address..."
+                onChange={e => setForm(p => ({ ...p, clientAddress: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white resize-none"
+              />
+            </div>
+            {billType === 'invoice' && (
+              <>
+                <div>
+                  <label className="block text-xs text-gray-500 font-semibold mb-1">Client GSTIN</label>
+                  <input
+                    type="text"
+                    value={form.clientGSTIN}
+                    placeholder="22XXXXX..."
+                    onChange={e => setForm(p => ({ ...p, clientGSTIN: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 font-semibold mb-1">Client PAN</label>
+                  <input
+                    type="text"
+                    value={form.clientPAN}
+                    placeholder="XXXXX1234X"
+                    onChange={e => setForm(p => ({ ...p, clientPAN: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+                  />
+                </div>
+              </>
+            )}
+            {billType === 'challan' && (
+              <div>
+                <label className="block text-xs text-gray-500 font-semibold mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={form.clientPhone}
+                  placeholder="98XXXXXXXX"
+                  onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-2xl p-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">🧱 Item Details</p>
-            <Field label="Item Description" value={form.itemDesc} onChange={v => set('itemDesc', v)} placeholder="paving block" />
-            <Field label="HSN/SAC Code" value={form.hsn} onChange={v => set('hsn', v)} placeholder="7016" />
-            {billType === 'challan' && <>
-              <Field label="Vehicle No." value={form.vehicleNo} onChange={v => set('vehicleNo', v)} placeholder="GJ05XX1234" />
-              <Field label="Per (unit)" value={form.per} onChange={v => set('per', v)} placeholder="Brass / Nos" />
-            </>}
-            <Field label="Quantity" value={form.qty} onChange={v => set('qty', v)} type="number" placeholder="15" />
-            <Field label={`Rate per Item (₹)${billType === 'challan' ? ' — leave 0 for delivery-only' : ''}`}
-              value={form.rate} onChange={v => set('rate', v)} type="number" placeholder="0" />
+          {/* ── Item Details ── */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">🧱 Item Details</p>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Item Description</label>
+              <input
+                type="text"
+                value={form.itemDesc}
+                placeholder="paving block"
+                onChange={e => setForm(p => ({ ...p, itemDesc: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">HSN/SAC Code</label>
+              <input
+                type="text"
+                value={form.hsn}
+                placeholder="7016"
+                onChange={e => setForm(p => ({ ...p, hsn: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            {billType === 'challan' && (
+              <>
+                <div>
+                  <label className="block text-xs text-gray-500 font-semibold mb-1">Vehicle No.</label>
+                  <input
+                    type="text"
+                    value={form.vehicleNo}
+                    placeholder="GJ05XX1234"
+                    onChange={e => setForm(p => ({ ...p, vehicleNo: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 font-semibold mb-1">Per (unit)</label>
+                  <input
+                    type="text"
+                    value={form.per}
+                    placeholder="Brass / Nos"
+                    onChange={e => setForm(p => ({ ...p, per: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+                  />
+                </div>
+              </>
+            )}
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">Quantity</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={form.qty}
+                placeholder="15"
+                onChange={e => setForm(p => ({ ...p, qty: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 font-semibold mb-1">
+                Rate per Item (₹){billType === 'challan' ? ' — leave 0 for delivery-only' : ''}
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={form.rate}
+                placeholder="0"
+                onChange={e => setForm(p => ({ ...p, rate: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
+              />
+            </div>
 
             {/* Live calculation preview */}
             {parseFloat(form.qty) > 0 && parseFloat(form.rate) > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3 mt-2 text-xs">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs">
                 <div className="flex justify-between"><span>Taxable:</span><span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate))}</span></div>
                 <div className="flex justify-between"><span>Tax (18%):</span><span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * 0.18)}</span></div>
                 <div className="flex justify-between border-t border-green-200 mt-1 pt-1 font-bold text-green-700">
