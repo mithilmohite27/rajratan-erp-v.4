@@ -72,7 +72,7 @@ function TaxInvoicePreview({ data }) {
                 <img
                   src="/rajratan_enterprises_logo.svg"
                   alt="Raj Ratan Enterprise Logo"
-                  style={{ width: '80px', height: '80px', objectFit: 'contain', flexShrink: 0 }}
+                  style={{ width: '85px', height: '85px', objectFit: 'contain', flexShrink: 0 }}
                 />
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
@@ -256,7 +256,7 @@ function ChallanPreview({ data }) {
                 <img
                   src="/rajratan_enterprises_logo.svg"
                   alt="Raj Ratan Enterprise Logo"
-                  style={{ width: '80px', height: '80px', objectFit: 'contain', flexShrink: 0 }}
+                  style={{ width: '85px', height: '85px', objectFit: 'contain', flexShrink: 0 }}
                 />
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
