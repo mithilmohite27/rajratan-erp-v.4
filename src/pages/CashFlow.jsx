@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadCashFlow, saveCashFlowEntry, loadVendors, saveVendorEntry } from '../lib/sheets.js'
+import { loadCashFlow } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 const SOURCES = ['Factory', 'External']
 
@@ -12,6 +13,72 @@ function SummaryCard({ label, amount, color }) {
       <p className="text-xl font-bold text-gray-800">{formatINR(amount)}</p>
     </div>
   )
+}
+
+async function saveCashFlowViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/cash-flow', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry: { ...entry, force } }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) {
+    return { duplicate: true, message: payload.message }
+  }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Cash entry save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_CASH_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid cash entry. ${message}`)
+    }
+    if (payload.code === 'CASH_FLOW_SAVE_FAILED') {
+      throw new Error(`Backend not configured or cash entry save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
+
+async function saveVendorLedgerViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/vendors', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry: { ...entry, force }, skipCashFlow: true }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, message: payload.message }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Vendor ledger sync failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_VENDOR_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid vendor entry. ${message}`)
+    }
+    if (payload.code === 'VENDOR_SAVE_FAILED') {
+      throw new Error(`Backend not configured or vendor ledger sync failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
 }
 
 export default function CashFlow() {
@@ -49,10 +116,21 @@ export default function CashFlow() {
   const totalNet = totalIn - totalOut
 
   const handleIn = async () => {
+    if (saving) return
     if (!inForm.amount || !inForm.description) { setError('Amount and description required.'); return }
     setSaving(true); setError('')
     try {
-      await saveCashFlowEntry(accessToken, { ...inForm, type: 'In', amount: parseFloat(inForm.amount) })
+      const entry = { ...inForm, type: 'In', amount: parseFloat(inForm.amount), vendorName: '' }
+      const result = await saveCashFlowViaBackend(entry, accessToken)
+
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('cash in entry', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveCashFlowViaBackend(entry, accessToken, true)
+      }
+
       setRefresh(v => v+1)
       setInForm({ date: today(), source: 'Factory', amount: '', description: '' })
       setTab('dashboard')
@@ -61,16 +139,35 @@ export default function CashFlow() {
   }
 
   const handleOut = async () => {
+    if (saving) return
     if (!outForm.amount || !outForm.description) { setError('Amount and description required.'); return }
     setSaving(true); setError('')
     try {
-      await saveCashFlowEntry(accessToken, { ...outForm, type: 'Out', amount: parseFloat(outForm.amount) })
+      const entry = { ...outForm, type: 'Out', amount: parseFloat(outForm.amount) }
+      const result = await saveCashFlowViaBackend(entry, accessToken)
+
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('cash out entry', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveCashFlowViaBackend(entry, accessToken, true)
+      }
+
       // If vendor payment, also sync to vendor ledger
       if (isVendorPayment && outForm.vendorName) {
-        await saveVendorEntry(accessToken, {
+        const vendorEntry = {
           date: outForm.date, vendorName: outForm.vendorName, material: '',
-          type: 'Payment', amount: parseFloat(outForm.amount), notes: outForm.description
-        })
+          type: 'Payment', amount: entry.amount, notes: outForm.description
+        }
+        const vendorResult = await saveVendorLedgerViaBackend(vendorEntry, accessToken)
+        if (vendorResult.duplicate) {
+          if (!confirmDuplicateSave('vendor payment', 1)) {
+            setSaving(false)
+            return
+          }
+          await saveVendorLedgerViaBackend(vendorEntry, accessToken, true)
+        }
       }
       setRefresh(v => v+1)
       setOutForm({ date: today(), source: 'Factory', amount: '', description: '', vendorName: '' })

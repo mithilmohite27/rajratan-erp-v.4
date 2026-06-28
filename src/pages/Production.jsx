@@ -2,13 +2,46 @@ import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { calcProduction, calcDailyCost, formatINR, formatNum, today } from '../lib/formulas.js'
 import { unitLabel } from '../lib/materials.js'
-import { saveProductionEntry, saveProductionVariants, loadProduction } from '../lib/sheets.js'
+import { loadProduction } from '../lib/sheets.js'
 import { blocksToBrass } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS  = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI   = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
 const COLOR_BG = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
+
+async function saveProductionViaBackend(payload, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/production', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ...payload, force }),
+  })
+
+  const response = await res.json().catch(() => ({}))
+  if (response.duplicate) return { duplicate: true, message: response.message }
+
+  if (!res.ok || !response.ok) {
+    const message = response.message || 'Production entry save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (response.code === 'INVALID_PRODUCTION_ENTRY' || response.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid production entry. ${message}`)
+    }
+    if (response.code === 'PRODUCTION_SAVE_FAILED') {
+      throw new Error(`Backend not configured or production save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return response
+}
 
 // ── Shared input field ────────────────────────
 function Field({ label, value, onChange, readOnly = false, unit = '', highlight = false, type = 'number' }) {
@@ -134,6 +167,7 @@ export default function Production() {
   }, [saved])
 
   const handleSave = async () => {
+    if (saving) return
     if (!inputs.date || !inputs.mortarCement) {
       setError('Date and Mortar Cement are required.')
       return
@@ -146,8 +180,16 @@ export default function Production() {
 
     setSaving(true); setError('')
     try {
-      // 1. Save main production log entry
-      await saveProductionEntry(accessToken, {
+      const variantRows = filledVariants.map(color => ({
+        date:    inputs.date,
+        color,
+        blocks:  parseInt(variants[color]),
+        brass:   blocksToBrass(variants[color]),
+        batchId: inputs.date,
+        notes:   '',
+      }))
+
+      const entry = {
         date: inputs.date, blocks: inputs.blocks,
         mortarCement: inputs.mortarCement, colorCement: inputs.colorCement,
         totalCement: calc.totalCement, greet: calc.greet, powder: calc.powder,
@@ -159,18 +201,16 @@ export default function Production() {
         colorCost: cost.colorCost, plasticCost: cost.plasticCost,
         retiCost: cost.retiCost, labourCost: cost.labourCost,
         totalDailyCost: cost.totalDailyCost,
-      })
+      }
 
-      // 2. Save per-color variants → drives inventory inflow
-      const variantRows = filledVariants.map(color => ({
-        date:    inputs.date,
-        color,
-        blocks:  parseInt(variants[color]),
-        brass:   blocksToBrass(variants[color]),
-        batchId: inputs.date,
-        notes:   '',
-      }))
-      await saveProductionVariants(accessToken, variantRows)
+      const result = await saveProductionViaBackend({ entry, variants: variantRows }, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('production entry', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveProductionViaBackend({ entry, variants: variantRows }, accessToken, true)
+      }
 
       // Snapshot calc & cost BEFORE clearing inputs — results/cost tab reads snapshot
       setLastCalc({ calc: { ...calc, yellowFinal: effectiveYellowFinal, redFinal: effectiveRedFinal }, cost, blocks: inputs.blocks, date: inputs.date })

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../App.jsx'
-import { loadVendors, saveVendorEntry, saveCashFlowEntry } from '../lib/sheets.js'
+import { loadVendors } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 // ── Material list matches materials.js MATERIAL_IDS exactly ──
 // 'Color' split into Yellow/Red so material stock deduction works correctly
@@ -68,6 +69,38 @@ function VendorAutocomplete({ value, onChange, vendorList, placeholder }) {
   )
 }
 
+async function saveVendorViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/vendors', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry: { ...entry, force } }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, message: payload.message }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Vendor entry save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_VENDOR_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid vendor entry. ${message}`)
+    }
+    if (payload.code === 'VENDOR_SAVE_FAILED') {
+      throw new Error(`Backend not configured or vendor save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
+
 export default function Vendors() {
   const { accessToken } = useApp()
   const [tab,     setTab]     = useState('ledger')
@@ -111,21 +144,34 @@ export default function Vendors() {
 
   // ── SAVE INVOICE ──────────────────────────────
   const handleInvoice = async () => {
+    if (saving) return
     if (!invoiceForm.vendorName) { setError('Vendor name is required.'); return }
     if (!invoiceForm.amount)     { setError('Invoice amount is required.'); return }
     setSaving(true); setError('')
     try {
       const mat = selectedMat(invoiceForm.material)
-      await saveVendorEntry(accessToken, {
+      const quantity = invoiceForm.quantity ? parseFloat(invoiceForm.quantity) : ''
+      const amount = parseFloat(invoiceForm.amount)
+      const entry = {
         date:       invoiceForm.date,
         vendorName: invoiceForm.vendorName,
         material:   invoiceForm.material,       // canonical ID e.g. 'Cement', 'Greet'
         type:       'Invoice',
-        quantity:   invoiceForm.quantity ? parseFloat(invoiceForm.quantity) : '',
+        quantity,
         unit:       mat.unit,                   // correct unit saved → stock engine reads this
-        amount:     parseFloat(invoiceForm.amount),
+        amount,
         notes:      invoiceForm.notes,
-      })
+      }
+      const result = await saveVendorViaBackend(entry, accessToken)
+
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('vendor invoice', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveVendorViaBackend(entry, accessToken, true)
+      }
+
       setRefresh(v => v + 1)
       setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', quantity: '', amount: '', notes: '' })
       flash('✅ Invoice saved — Material Stock updated automatically!')
@@ -136,30 +182,33 @@ export default function Vendors() {
 
   // ── SAVE PAYMENT ──────────────────────────────
   const handlePayment = async () => {
+    if (saving) return
     if (!payForm.vendorName) { setError('Select a vendor.'); return }
     if (!payForm.amount)     { setError('Payment amount is required.'); return }
     setSaving(true); setError('')
     try {
-      // 1. Save to Vendor_Ledger
-      await saveVendorEntry(accessToken, {
+      const amount = parseFloat(payForm.amount)
+      const entry = {
         date:       payForm.date,
         vendorName: payForm.vendorName,
         material:   '',
         type:       'Payment',
         quantity:   '',
         unit:       '',
-        amount:     parseFloat(payForm.amount),
+        amount,
         notes:      payForm.notes,
-      })
-      // 2. Sync to CashFlow — deducts from selected account
-      await saveCashFlowEntry(accessToken, {
-        date:        payForm.date,
-        type:        'Out',
-        source:      payForm.source,
-        amount:      parseFloat(payForm.amount),
-        description: `Vendor Payment — ${payForm.vendorName}`,
-        vendorName:  payForm.vendorName,
-      })
+        source:     payForm.source,
+      }
+      const result = await saveVendorViaBackend(entry, accessToken)
+
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('vendor payment', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveVendorViaBackend(entry, accessToken, true)
+      }
+
       setRefresh(v => v + 1)
       setPayForm({ date: today(), vendorName: '', amount: '', source: 'Factory', notes: '' })
       flash('✅ Payment recorded + Cash Flow updated!')

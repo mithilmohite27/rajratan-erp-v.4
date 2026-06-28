@@ -1,13 +1,43 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../App.jsx'
-import { computeInventory, computeInventoryDebug, saveOpeningStock } from '../lib/sheets.js'
+import { computeInventory, computeInventoryDebug } from '../lib/sheets.js'
 import { blocksToBrass, formatNum, today } from '../lib/formulas.js'
 import MaterialStock from './MaterialStock.jsx'
+import { confirmDuplicateSave, confirmSheetWrite } from '../lib/safety.js'
 
 const COLORS    = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI     = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
 const COLOR_BG  = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
+
+async function saveOpeningStockViaBackend(rows, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/setup', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'opening_stock', rows, force, confirmHighRisk: true }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, ...payload }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Opening stock save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'MISSING_HIGH_RISK_CONFIRMATION') throw new Error(`Missing high-risk confirmation. ${message}`)
+    if (payload.code === 'INVALID_OPENING_STOCK_ROW' || payload.code === 'INVALID_AMOUNT') throw new Error(`Invalid opening stock row. ${message}`)
+    if (payload.code === 'SETUP_ACTION_FAILED') throw new Error(`Backend not configured or setup action failed. ${message}`)
+    throw new Error(message)
+  }
+
+  return payload
+}
 
 // ── Source status indicator ───────────────────
 function SourceRow({ label, count, ok }) {
@@ -166,12 +196,24 @@ export default function Inventory() {
   const handleQuickFix = async () => {
     const toSave = COLORS.filter(c => parseFloat(quickStock[c]) > 0)
     if (!toSave.length) { setError('Enter at least one color.'); return }
+    if (!confirmSheetWrite('This will append opening finished stock rows from Inventory. Use only after confirming the physical count and backup.')) return
     setQuickSaving(true); setError('')
     try {
-      await saveOpeningStock(accessToken, toSave.map(color => ({
-        color, blocks: parseInt(quickStock[color]), setupDate: today(), notes: 'Quick fix from Inventory'
-      })))
-      setSuccess('✅ Opening stock saved! Refreshing...')
+      const rows = toSave.map(color => ({
+        color,
+        blocks: parseInt(quickStock[color]),
+        setupDate: today(),
+        notes: 'Quick fix from Inventory',
+      }))
+      const result = await saveOpeningStockViaBackend(rows, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('opening stock row', result.duplicateRows || 1)) {
+          setQuickSaving(false)
+          return
+        }
+        await saveOpeningStockViaBackend(rows, accessToken, true)
+      }
+      setSuccess('Opening stock saved. Refreshing...')
       setTimeout(() => setSuccess(''), 3000)
       setShowQuickFix(false)
       setQuickStock(COLORS.reduce((a,c) => ({...a,[c]:''}), {}))

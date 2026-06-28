@@ -1,12 +1,45 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadCRM, saveCRMEntry } from '../lib/sheets.js'
+import { loadCRM } from '../lib/sheets.js'
 import { brassToBlocks, formatINR, formatNum, today } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS     = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI      = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
 const COLOR_BG   = { Red: 'border-red-200 bg-red-50', Yellow: 'border-yellow-200 bg-yellow-50', Black: 'border-gray-300 bg-gray-100', White: 'border-blue-200 bg-blue-50' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
+
+async function saveCRMViaBackend(action, entries, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/crm', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, entries, force }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, message: payload.message }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'CRM save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_CRM_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid CRM entry. ${message}`)
+    }
+    if (payload.code === 'CRM_SAVE_FAILED') {
+      throw new Error(`Backend not configured or CRM save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
 
 const emptyColors = () => COLORS.reduce((a, c) => ({ ...a, [c]: '' }), {})
 
@@ -260,25 +293,33 @@ export default function CRM() {
 
   // ── Save new order — one row per color ─────
   const handleNewOrder = async () => {
+    if (saving) return
     if (!orderForm.clientName.trim()) { setError('Client name is required.'); return }
     if (orderedColors.length === 0)   { setError('Enter brass qty for at least one color.'); return }
     setSaving(true); setError('')
     try {
-      await Promise.all(orderedColors.map(color =>
-        saveCRMEntry(accessToken, {
-          date:         orderForm.date,
-          clientName:   orderForm.clientName.trim(),
-          location:     orderForm.location,
-          orderBrass:   parseFloat(colorBrass[color]),
-          orderBlocks:  brassToBlocks(colorBrass[color]),
-          rate:         parseFloat(orderForm.rate) || 0,
-          color,                          // ← per-color row
-          status:       'Order',
-          dispatchBrass: 0, dispatchBlocks: 0,
-          transport: '', transporter: '', freightCharge: 0,
-          notes: orderForm.notes,
-        })
-      ))
+      const entries = orderedColors.map(color => ({
+        date:         orderForm.date,
+        clientName:   orderForm.clientName.trim(),
+        location:     orderForm.location,
+        orderBrass:   parseFloat(colorBrass[color]),
+        orderBlocks:  brassToBlocks(colorBrass[color]),
+        rate:         parseFloat(orderForm.rate) || 0,
+        color,
+        status:       'Order',
+        dispatchBrass: 0, dispatchBlocks: 0,
+        transport: '', transporter: '', freightCharge: 0,
+        notes: orderForm.notes,
+      }))
+
+      const result = await saveCRMViaBackend('create_order', entries, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('CRM order', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveCRMViaBackend('create_order', entries, accessToken, true)
+      }
       flash(`✅ Order saved — ${orderedColors.length} color${orderedColors.length > 1 ? 's' : ''} · ${formatNum(totalOrderBrass,2)} brass total`)
       setOrderForm({ date: today(), clientName: '', location: '', rate: '', notes: '' })
       setColorBrass(emptyColors())
@@ -290,16 +331,17 @@ export default function CRM() {
 
   // ── Dispatch — saves Status='Dispatched' which triggers inventory deduction
   const handleDispatch = async () => {
+    if (saving) return
     if (!dispatchForm.clientName) { setError('Select a client.'); return }
     const toDispatch = COLORS.filter(c => parseFloat(dispatchColors[c]) > 0)
     if (toDispatch.length === 0) { setError('Enter brass qty for at least one color.'); return }
     setSaving(true); setError('')
     try {
       // Save one row per color — each deducts from inventory independently
-      await Promise.all(toDispatch.map(color => {
-        const brass  = parseFloat(dispatchColors[color])
+      const entries = toDispatch.map(color => {
+        const brass = parseFloat(dispatchColors[color])
         const blocks = brassToBlocks(brass)
-        return saveCRMEntry(accessToken, {
+        return {
           date:           dispatchForm.date,
           clientName:     dispatchForm.clientName,
           location:       '',
@@ -312,8 +354,17 @@ export default function CRM() {
           transporter:    dispatchForm.transport === 'Company Transport' ? dispatchForm.transporter : '',
           freightCharge:  dispatchForm.transport === 'Company Transport' ? parseFloat(dispatchForm.freightCharge) || 0 : 0,
           notes:          dispatchForm.notes,
-        })
-      }))
+        }
+      })
+
+      const result = await saveCRMViaBackend('dispatch', entries, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('CRM dispatch', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveCRMViaBackend('dispatch', entries, accessToken, true)
+      }
       const totalBrass = toDispatch.reduce((s, c) => s + parseFloat(dispatchColors[c]), 0)
       flash(`✅ ${toDispatch.length} color${toDispatch.length>1?'s':''} dispatched (${formatNum(totalBrass,2)} brass) — inventory updated!`)
       setDispatchForm({ date: today(), clientName: '', transport: 'Self-Pickup', transporter: '', freightCharge: '', notes: '' })

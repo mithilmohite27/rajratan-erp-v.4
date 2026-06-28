@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../App.jsx'
 import { loadCRM } from '../lib/sheets.js'
 import { today } from '../lib/formulas.js'
+import { DEFAULT_CONFIG } from '../lib/config.js'
 
 // ── Company Details (fixed) ───────────────────
 const COMPANY = {
@@ -128,17 +129,40 @@ const fmt  = n => parseFloat(n || 0).toLocaleString('en-IN', {
   maximumFractionDigits: 2,
 })
 
+const cfg = (config, key) => config?.[key] ?? DEFAULT_CONFIG[key] ?? ''
+const getGstRate = config => {
+  const rate = parseFloat(cfg(config, 'DEFAULT_GST_RATE'))
+  return rate > 0 ? rate : 18
+}
+const getCompany = config => ({
+  name: cfg(config, 'COMPANY_NAME') || COMPANY.name,
+  address: cfg(config, 'BUSINESS_ADDRESS') || COMPANY.address,
+  gstin: cfg(config, 'GST_NUMBER') || COMPANY.gstin,
+  pan: COMPANY.pan,
+  phone: cfg(config, 'BUSINESS_PHONE') || COMPANY.phone,
+  email: cfg(config, 'BUSINESS_EMAIL'),
+  bank: cfg(config, 'BANK_NAME') || COMPANY.bank,
+  account: cfg(config, 'BANK_ACCOUNT_NUMBER') || COMPANY.account,
+  ifsc: cfg(config, 'IFSC_CODE') || COMPANY.ifsc,
+  accName: cfg(config, 'BANK_ACCOUNT_NAME') || COMPANY.accName,
+  paymentTerms: cfg(config, 'PAYMENT_TERMS'),
+  footerNote: cfg(config, 'INVOICE_FOOTER_NOTE'),
+})
+
 // ── Tax Invoice Template ──────────────────────
-function TaxInvoicePreview({ data }) {
+function TaxInvoicePreview({ data, config }) {
+  const company = getCompany(config)
+  const gstRate = getGstRate(config)
+  const halfGstRate = gstRate / 2
   const qty      = parseFloat(data.qty)  || 0
   const rate     = parseFloat(data.rate) || 0
   const taxable  = parseFloat(fmt2(qty * rate))
 
   const isInterState = isInterStateSupply(data.placeOfSupply)
 
-  const cgst = isInterState ? 0 : parseFloat(fmt2(taxable * 0.09))
-  const sgst = isInterState ? 0 : parseFloat(fmt2(taxable * 0.09))
-  const igst = isInterState ? parseFloat(fmt2(taxable * 0.18)) : 0
+  const cgst = isInterState ? 0 : parseFloat(fmt2(taxable * (halfGstRate / 100)))
+  const sgst = isInterState ? 0 : parseFloat(fmt2(taxable * (halfGstRate / 100)))
+  const igst = isInterState ? parseFloat(fmt2(taxable * (gstRate / 100))) : 0
 
   const taxTotal = parseFloat(fmt2(cgst + sgst + igst))
   const rawTotal = taxable + taxTotal
@@ -192,11 +216,12 @@ function TaxInvoicePreview({ data }) {
                 />
 
                 <div>
-                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
-                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
-                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {COMPANY.gstin || '______________________'}</div>
-                  <div style={{ fontSize: '10px' }}>PAN: {COMPANY.pan || '______________________'}</div>
-                  <div style={{ fontSize: '10px' }}>Phone: {COMPANY.phone}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{company.name}</div>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{company.address}</div>
+                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {company.gstin || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>PAN: {company.pan || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>Phone: {company.phone}</div>
+                  {company.email && <div style={{ fontSize: '10px' }}>Email: {company.email}</div>}
                 </div>
               </div>
             </td>
@@ -209,7 +234,7 @@ function TaxInvoicePreview({ data }) {
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', fontSize: '13px', paddingBottom: '4px' }}>
-                      {data.invoiceNo || 'INV1'}
+                      {data.invoiceNo || `${cfg(config, 'INVOICE_PREFIX') || 'INV'}1`}
                     </td>
                   </tr>
 
@@ -288,7 +313,7 @@ function TaxInvoicePreview({ data }) {
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>1</td>
             <td style={{ border: '1px solid #000', padding: '6px' }}>{data.itemDesc || ITEM_DESC}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{data.hsn || HSN_PAVING}</td>
-            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>18.0%</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(gstRate)}%</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{qty || ''}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(rate)}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{data.per || '-'}</td>
@@ -304,10 +329,10 @@ function TaxInvoicePreview({ data }) {
           {[
             { label: 'Taxable Amount', value: fmt2(taxable) },
             ...(isInterState
-              ? [{ label: 'IGST 18.0%', value: fmt2(igst) }]
+              ? [{ label: `IGST ${fmt2(gstRate)}%`, value: fmt2(igst) }]
               : [
-                  { label: 'CGST 9.0%', value: fmt2(cgst) },
-                  { label: 'SGST 9.0%', value: fmt2(sgst) },
+                  { label: `CGST ${fmt2(halfGstRate)}%`, value: fmt2(cgst) },
+                  { label: `SGST ${fmt2(halfGstRate)}%`, value: fmt2(sgst) },
                 ]
             ),
             { label: 'Round off', value: roundOff !== 0 ? fmt2(roundOff) : '' },
@@ -374,9 +399,9 @@ function TaxInvoicePreview({ data }) {
             <tr>
               <td style={{ border: '1px solid #000', padding: '4px 6px', fontSize: '10px' }}>{data.hsn || HSN_PAVING}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxable)}</td>
-              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>9.0</td>
+              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>{fmt2(halfGstRate)}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(cgst)}</td>
-              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>9.0</td>
+              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>{fmt2(halfGstRate)}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(sgst)}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxTotal)}</td>
             </tr>
@@ -415,7 +440,7 @@ function TaxInvoicePreview({ data }) {
             <tr>
               <td style={{ border: '1px solid #000', padding: '4px 6px', fontSize: '10px' }}>{data.hsn || HSN_PAVING}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxable)}</td>
-              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>18.0</td>
+              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', fontSize: '10px' }}>{fmt2(gstRate)}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(igst)}</td>
               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontSize: '10px' }}>{fmt2(taxTotal)}</td>
             </tr>
@@ -439,15 +464,17 @@ function TaxInvoicePreview({ data }) {
               <div style={{ fontWeight: 'bold', fontSize: '10px', textDecoration: 'underline', marginBottom: '2px' }}>
                 Bank Details:
               </div>
-              <div style={{ fontSize: '10px' }}>Bank Name: {COMPANY.bank}</div>
-              <div style={{ fontSize: '10px' }}>Account Number: {COMPANY.account}</div>
-              <div style={{ fontSize: '10px' }}>IFSC Code: {COMPANY.ifsc}</div>
-              <div style={{ fontSize: '10px' }}>Account Name: {COMPANY.accName}</div>
+              <div style={{ fontSize: '10px' }}>Bank Name: {company.bank}</div>
+              <div style={{ fontSize: '10px' }}>Account Number: {company.account}</div>
+              <div style={{ fontSize: '10px' }}>IFSC Code: {company.ifsc}</div>
+              <div style={{ fontSize: '10px' }}>Account Name: {company.accName}</div>
+              {company.paymentTerms && <div style={{ fontSize: '10px', marginTop: '3px' }}>Terms: {company.paymentTerms}</div>}
+              {company.footerNote && <div style={{ fontSize: '10px', marginTop: '3px' }}>{company.footerNote}</div>}
             </td>
 
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', verticalAlign: 'top' }}>
               <div style={{ fontSize: '10px', marginBottom: '30px' }}>Authorised Signatory</div>
-              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{COMPANY.name}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{company.name}</div>
             </td>
           </tr>
         </tbody>
@@ -457,16 +484,19 @@ function TaxInvoicePreview({ data }) {
 }
 
 // ── Delivery Challan Template ─────────────────
-function ChallanPreview({ data }) {
+function ChallanPreview({ data, config }) {
+  const company = getCompany(config)
+  const gstRate = getGstRate(config)
+  const halfGstRate = gstRate / 2
   const qty     = parseFloat(data.qty)  || 0
   const rate    = parseFloat(data.rate) || 0
   const taxable = parseFloat(fmt2(qty * rate))
 
   const isInterState = isInterStateSupply(data.placeOfSupply)
 
-  const cgst = isInterState ? 0 : parseFloat(fmt2(taxable * 0.09))
-  const sgst = isInterState ? 0 : parseFloat(fmt2(taxable * 0.09))
-  const igst = isInterState ? parseFloat(fmt2(taxable * 0.18)) : 0
+  const cgst = isInterState ? 0 : parseFloat(fmt2(taxable * (halfGstRate / 100)))
+  const sgst = isInterState ? 0 : parseFloat(fmt2(taxable * (halfGstRate / 100)))
+  const igst = isInterState ? parseFloat(fmt2(taxable * (gstRate / 100))) : 0
 
   const taxTotal = parseFloat(fmt2(cgst + sgst + igst))
   const total = taxable + taxTotal
@@ -513,11 +543,12 @@ function ChallanPreview({ data }) {
                 />
 
                 <div>
-                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{COMPANY.name}</div>
-                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{COMPANY.address}</div>
-                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {COMPANY.gstin || '______________________'}</div>
-                  <div style={{ fontSize: '10px' }}>PAN: {COMPANY.pan || '______________________'}</div>
-                  <div style={{ fontSize: '10px' }}>Phone: {COMPANY.phone}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{company.name}</div>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: '10px', lineHeight: '1.4' }}>{company.address}</div>
+                  <div style={{ fontSize: '10px', marginTop: '3px' }}>GSTIN: {company.gstin || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>PAN: {company.pan || '______________________'}</div>
+                  <div style={{ fontSize: '10px' }}>Phone: {company.phone}</div>
+                  {company.email && <div style={{ fontSize: '10px' }}>Email: {company.email}</div>}
                 </div>
               </div>
             </td>
@@ -530,7 +561,7 @@ function ChallanPreview({ data }) {
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', fontSize: '13px', paddingBottom: '4px' }}>
-                      {data.challanNo || 'CHN1'}
+                      {data.challanNo || `${cfg(config, 'CHALLAN_PREFIX') || 'CHN'}1`}
                     </td>
                   </tr>
 
@@ -610,7 +641,7 @@ function ChallanPreview({ data }) {
             <td style={{ border: '1px solid #000', padding: '6px' }}>{data.itemDesc || ITEM_DESC}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{data.hsn || HSN_PAVING}</td>
             <td style={{ border: '1px solid #000', padding: '6px', fontSize: '9px' }}>{data.vehicleNo || ''}</td>
-            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>18.0%</td>
+            <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(gstRate)}%</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(qty)}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{data.per || ''}</td>
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt2(rate)}</td>
@@ -626,10 +657,10 @@ function ChallanPreview({ data }) {
           {[
             { label: 'Taxable Amount', value: rate > 0 ? fmt2(taxable) : '0.00' },
             ...(isInterState
-              ? [{ label: 'IGST 18.0%', value: rate > 0 ? fmt2(igst) : '0.00' }]
+              ? [{ label: `IGST ${fmt2(gstRate)}%`, value: rate > 0 ? fmt2(igst) : '0.00' }]
               : [
-                  { label: 'CGST 9.0%', value: rate > 0 ? fmt2(cgst) : '0.00' },
-                  { label: 'SGST 9.0%', value: rate > 0 ? fmt2(sgst) : '0.00' },
+                  { label: `CGST ${fmt2(halfGstRate)}%`, value: rate > 0 ? fmt2(cgst) : '0.00' },
+                  { label: `SGST ${fmt2(halfGstRate)}%`, value: rate > 0 ? fmt2(sgst) : '0.00' },
                 ]
             ),
             { label: 'Round off', value: '0.00' },
@@ -671,11 +702,13 @@ function ChallanPreview({ data }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0' }}>
         <tbody>
           <tr>
-            <td style={{ border: '1px solid #000', padding: '40px 6px 6px', verticalAlign: 'bottom', width: '60%' }}></td>
+            <td style={{ border: '1px solid #000', padding: '40px 6px 6px', verticalAlign: 'bottom', width: '60%' }}>
+              {company.footerNote && <div style={{ fontSize: '10px' }}>{company.footerNote}</div>}
+            </td>
 
             <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', verticalAlign: 'top' }}>
               <div style={{ fontSize: '10px', marginBottom: '30px' }}>Authorised Signatory</div>
-              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{COMPANY.name}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '10px', marginTop: '24px' }}>{company.name}</div>
             </td>
           </tr>
         </tbody>
@@ -686,7 +719,11 @@ function ChallanPreview({ data }) {
 
 // ── Main Component ────────────────────────────
 export default function BillGenerator() {
-  const { accessToken } = useApp()
+  const { accessToken, config } = useApp()
+  const invoicePrefix = cfg(config, 'INVOICE_PREFIX') || 'INV'
+  const challanPrefix = cfg(config, 'CHALLAN_PREFIX') || 'CHN'
+  const defaultGstRate = getGstRate(config)
+  const defaultHalfGstRate = defaultGstRate / 2
   const [billType, setBillType] = useState('invoice')
   const [preview, setPreview]   = useState(false)
   const printRef = useRef(null)
@@ -709,10 +746,18 @@ export default function BillGenerator() {
     rate: '',
     per: 'Brass',
     hsn: HSN_PAVING,
-    invoiceNo: 'INV1',
-    challanNo: 'CHN1',
+    invoiceNo: `${invoicePrefix}1`,
+    challanNo: `${challanPrefix}1`,
     vehicleNo: '',
   })
+
+  useEffect(() => {
+    setForm(p => ({
+      ...p,
+      invoiceNo: !p.invoiceNo || p.invoiceNo === 'INV1' ? `${invoicePrefix}1` : p.invoiceNo,
+      challanNo: !p.challanNo || p.challanNo === 'CHN1' ? `${challanPrefix}1` : p.challanNo,
+    }))
+  }, [invoicePrefix, challanPrefix])
 
   useEffect(() => {
     if (!accessToken) return
@@ -945,7 +990,7 @@ export default function BillGenerator() {
               <input
                 type="text"
                 value={billType === 'invoice' ? form.invoiceNo : form.challanNo}
-                placeholder={billType === 'invoice' ? 'INV1' : 'CHN1'}
+                placeholder={billType === 'invoice' ? `${invoicePrefix}1` : `${challanPrefix}1`}
                 onChange={e =>
                   setForm(p => ({
                     ...p,
@@ -1153,26 +1198,26 @@ export default function BillGenerator() {
 
                 {isInterStateSupply(form.placeOfSupply) ? (
                   <div className="flex justify-between">
-                    <span>IGST 18%:</span>
-                    <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * 0.18)}</span>
+                    <span>IGST {fmt2(defaultGstRate)}%:</span>
+                    <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * (defaultGstRate / 100))}</span>
                   </div>
                 ) : (
                   <>
                     <div className="flex justify-between">
-                      <span>CGST 9%:</span>
-                      <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * 0.09)}</span>
+                      <span>CGST {fmt2(defaultHalfGstRate)}%:</span>
+                      <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * (defaultHalfGstRate / 100))}</span>
                     </div>
 
                     <div className="flex justify-between">
-                      <span>SGST 9%:</span>
-                      <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * 0.09)}</span>
+                      <span>SGST {fmt2(defaultHalfGstRate)}%:</span>
+                      <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * (defaultHalfGstRate / 100))}</span>
                     </div>
                   </>
                 )}
 
                 <div className="flex justify-between border-t border-green-200 mt-1 pt-1 font-bold text-green-700">
                   <span>Total:</span>
-                  <span>₹{fmt(Math.round(parseFloat(form.qty) * parseFloat(form.rate) * 1.18))}</span>
+                  <span>₹{fmt(Math.round(parseFloat(form.qty) * parseFloat(form.rate) * (1 + defaultGstRate / 100)))}</span>
                 </div>
               </div>
             )}
@@ -1201,17 +1246,10 @@ export default function BillGenerator() {
             A print dialog will open → select "Save as PDF" as destination
           </p>
 
-          <div
-            ref={printRef}
-            style={{
-              transform: 'scale(0.6)',
-              transformOrigin: 'top center',
-              marginBottom: '-320px'
-            }}
-          >
+          <div ref={printRef} className="bill-preview-frame">
             {billType === 'invoice'
-              ? <TaxInvoicePreview data={form} />
-              : <ChallanPreview data={form} />
+              ? <TaxInvoicePreview data={form} config={config} />
+              : <ChallanPreview data={form} config={config} />
             }
           </div>
 

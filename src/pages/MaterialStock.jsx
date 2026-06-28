@@ -3,12 +3,11 @@ import { useApp } from '../App.jsx'
 import {
   computeMaterialInventory,
   computeMaterialInventoryDebug,
-  saveOpeningMaterialStock,
-  saveExternalMaterialUsage,
   loadExternalMaterialUsage,
 } from '../lib/sheets.js'
 import { MATERIAL_LIST, formatMaterialQty, unitLabel, MATERIAL_UNITS } from '../lib/materials.js'
 import { today } from '../lib/formulas.js'
+import { confirmDuplicateSave, confirmSheetWrite } from '../lib/safety.js'
 
 // ── Only materials that make sense for external sale ──
 const EXTERNAL_MATERIALS = MATERIAL_LIST.filter(m =>
@@ -16,6 +15,67 @@ const EXTERNAL_MATERIALS = MATERIAL_LIST.filter(m =>
 )
 
 const REASONS = ['External Sale', 'Block Fitting', 'Damaged / Waste', 'Other']
+
+async function saveOpeningMaterialViaBackend(rows, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/setup', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'opening_material_stock', rows, force, confirmHighRisk: true }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, ...payload }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Opening material stock save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'MISSING_HIGH_RISK_CONFIRMATION') throw new Error(`Missing high-risk confirmation. ${message}`)
+    if (payload.code === 'INVALID_OPENING_MATERIAL_ROW' || payload.code === 'INVALID_AMOUNT') throw new Error(`Invalid opening material row. ${message}`)
+    if (payload.code === 'SETUP_ACTION_FAILED') throw new Error(`Backend not configured or setup action failed. ${message}`)
+    throw new Error(message)
+  }
+
+  return payload
+}
+
+async function saveExternalMaterialUsageViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/material-usage', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry, force }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, ...payload }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'External material usage save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_MATERIAL_USAGE' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid material usage entry. ${message}`)
+    }
+    if (payload.code === 'MATERIAL_USAGE_SAVE_FAILED') {
+      throw new Error(`Backend not configured or material usage save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
 
 function SourceRow({ label, count, ok }) {
   return (
@@ -226,14 +286,22 @@ function ExternalUsageTab({ accessToken, onSaved }) {
     }
     setSaving(true); setError('')
     try {
-      await saveExternalMaterialUsage(accessToken, {
+      const entry = {
         date:     form.date,
         material: form.material,
         quantity: parseFloat(form.quantity),
         unit:     MATERIAL_UNITS[form.material] || '',
         reason:   form.reason,
         notes:    form.notes,
-      })
+      }
+      const result = await saveExternalMaterialUsageViaBackend(entry, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('external material usage', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveExternalMaterialUsageViaBackend(entry, accessToken, true)
+      }
       setSuccess(`✅ ${form.material} external usage saved — stock updated!`)
       setTimeout(() => setSuccess(''), 3000)
       setForm(p => ({ ...p, quantity: '', notes: '' }))
@@ -430,14 +498,25 @@ export default function MaterialStock() {
 
   const handleQuickFix = async () => {
     const toSave = MATERIAL_LIST.filter(m => parseFloat(quickStock[m.id]) > 0).map(m => ({
-      material: m.id, quantity: parseFloat(quickStock[m.id]),
-      unit: m.unit, setupDate: today(), notes: 'Quick fix from Material Stock',
+      material: m.id,
+      quantity: parseFloat(quickStock[m.id]),
+      unit: m.unit,
+      setupDate: today(),
+      notes: 'Quick fix from Material Stock',
     }))
     if (!toSave.length) { setError('Enter at least one material quantity.'); return }
+    if (!confirmSheetWrite('This will append opening raw material stock rows from Material Stock. Use only after confirming the physical count and backup.')) return
     setQuickSaving(true); setError('')
     try {
-      await saveOpeningMaterialStock(accessToken, toSave)
-      setSuccess('✅ Opening material stock saved! Refreshing...')
+      const result = await saveOpeningMaterialViaBackend(toSave, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('opening material stock row', result.duplicateRows || 1)) {
+          setQuickSaving(false)
+          return
+        }
+        await saveOpeningMaterialViaBackend(toSave, accessToken, true)
+      }
+      setSuccess('Opening material stock saved. Refreshing...')
       setTimeout(() => setSuccess(''), 3000)
       setShowQuickFix(false)
       setQuickStock(MATERIAL_LIST.reduce((a, m) => ({ ...a, [m.id]: '' }), {}))

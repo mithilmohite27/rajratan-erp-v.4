@@ -9,8 +9,186 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overscroll-behavior: none;
+  background: #f8f9fb;
+  color: #0f172a;
 }
 
 /* Safe area for iPhone notch */
 .safe-top    { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+@media (min-width: 768px) {
+  main .max-w-lg {
+    max-width: 72rem;
+  }
+}
+
+@layer components {
+  main .max-w-lg {
+    width: 100%;
+  }
+
+  main .max-w-lg > div:first-child:not(style) {
+    border-radius: 0 0 1.5rem 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    main .max-w-lg {
+      padding: 1rem 1.25rem 2rem;
+    }
+
+    main .max-w-lg > div:first-child:not(style) {
+      position: static;
+      top: auto;
+      margin-bottom: 1rem;
+      border: 1px solid rgb(226 232 240);
+      border-radius: 1.5rem;
+      background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
+      box-shadow: 0 16px 35px rgb(15 23 42 / 0.06);
+    }
+
+    main .max-w-lg > div:first-child:not(style) h1 {
+      font-size: 1.875rem;
+      line-height: 2.25rem;
+      letter-spacing: -0.03em;
+      color: #0f172a;
+    }
+
+    main .max-w-lg > div:first-child:not(style) p {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+  }
+
+  main .max-w-lg .bg-white {
+    border-color: rgb(226 232 240 / 0.9);
+  }
+
+  main .max-w-lg .rounded-xl,
+  main .max-w-lg .rounded-2xl {
+    box-shadow: 0 10px 25px rgb(15 23 42 / 0.035);
+  }
+
+  main .max-w-lg input,
+  main .max-w-lg textarea,
+  main .max-w-lg select {
+    min-height: 2.35rem;
+  }
+
+  main .max-w-lg input:focus,
+  main .max-w-lg textarea:focus,
+  main .max-w-lg select:focus {
+    outline: 2px solid rgb(249 115 22 / 0.18);
+    outline-offset: 2px;
+    border-radius: 0.75rem;
+  }
+
+  main .max-w-lg button {
+    touch-action: manipulation;
+  }
+
+  main .max-w-lg button:disabled {
+    cursor: not-allowed;
+  }
+
+  @media (min-width: 768px) {
+    main .max-w-lg > div[class*="p-4"],
+    main .max-w-lg > div[class*="px-4"] {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    main .max-w-lg > div[class*="space-y-3"] {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+
+    main .max-w-lg > div[class*="space-y-3"] > * {
+      grid-column: span 12 / span 12;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    main .max-w-lg > div[class*="space-y-3"] > .bg-white,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-orange-50,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-blue-50,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-green-50,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-yellow-50,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-amber-50,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-red-50 {
+      grid-column: span 6 / span 6;
+    }
+
+    main .max-w-lg > div[class*="space-y-3"] > .bg-orange-500,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-green-500,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-red-500,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-gray-800,
+    main .max-w-lg > div[class*="space-y-3"] > .bg-gray-900,
+    main .max-w-lg > div[class*="space-y-3"] > button,
+    main .max-w-lg > div[class*="space-y-3"] > .text-center,
+    main .max-w-lg > div[class*="space-y-3"] > .flex,
+    main .max-w-lg > div[class*="space-y-3"] > .grid,
+    main .max-w-lg > div[class*="space-y-3"] > [class*="text-xs"][class*="uppercase"] {
+      grid-column: span 12 / span 12;
+    }
+  }
+
+  .bill-sheet {
+    box-shadow: 0 24px 70px rgb(15 23 42 / 0.18);
+  }
+
+  .bill-preview-frame {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 1.5rem;
+    background: #e2e8f0;
+    padding: 1rem;
+  }
+
+  .bill-preview-frame .bill-sheet {
+    flex: 0 0 auto;
+    transform: scale(0.36);
+    transform-origin: top center;
+    margin: 0 -67% -182%;
+  }
+
+  @media (min-width: 640px) {
+    .bill-preview-frame .bill-sheet {
+      transform: scale(0.52);
+      margin: 0 -46% -132%;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .bill-preview-frame .bill-sheet {
+      transform: scale(0.72);
+      margin: 0 -20% -72%;
+    }
+  }
+
+  @media print {
+    .bill-preview-frame {
+      display: block;
+      overflow: visible;
+      padding: 0;
+      background: transparent;
+    }
+
+    .bill-preview-frame .bill-sheet {
+      transform: none !important;
+      margin: 0 !important;
+    }
+
+    .bill-sheet {
+      box-shadow: none !important;
+    }
+  }
+}

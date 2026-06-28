@@ -15,6 +15,9 @@ import {
 const SHEET_ID = import.meta.env.VITE_SHEET_ID
 
 // ── Core primitives ───────────────────────────
+// Deprecated for reachable UI writes: backend endpoints should handle all new
+// write paths. Keep these helpers temporarily for legacy reads/compatibility
+// until the final backend-only cleanup removes unused exports safely.
 
 export async function readSheet(accessToken, range) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`

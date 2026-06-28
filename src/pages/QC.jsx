@@ -1,11 +1,44 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadQC, saveQCEntry, loadProduction } from '../lib/sheets.js'
+import { loadQC, loadProduction } from '../lib/sheets.js'
 import { formatINR, formatNum, today } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS   = ['Red', 'Yellow', 'Black', 'White', 'All Colors']
 const EMOJI    = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪', 'All Colors': '🎨' }
 const COLOR_BG = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200', 'All Colors': 'bg-purple-50 border-purple-200' }
+
+async function saveQCViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/qc', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry, force }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, message: payload.message }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'QC entry save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_QC_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid QC entry. ${message}`)
+    }
+    if (payload.code === 'QC_SAVE_FAILED') {
+      throw new Error(`Backend not configured or QC save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
 
 export default function QC() {
   const { accessToken } = useApp()
@@ -58,14 +91,23 @@ export default function QC() {
     if (!form.brokenBlocks) { setError('Enter number of broken blocks.'); return }
     setSaving(true); setError('')
     try {
-      await saveQCEntry(accessToken, {
+      const entry = {
         date:         form.date,
         color:        form.color,   // ← now saved per-color for accurate inventory deduction
         brokenBlocks: parseInt(form.brokenBlocks),
         costPerBlock: formatNum(costPerBlock, 2),
         totalLoss:    formatNum(estimatedLoss, 2),
         notes:        form.notes,
-      })
+      }
+
+      const result = await saveQCViaBackend(entry, accessToken)
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('QC entry', 1)) {
+          setSaving(false)
+          return
+        }
+        await saveQCViaBackend(entry, accessToken, true)
+      }
       setRefresh(v => v + 1)
       setForm({ date: today(), color: 'All Colors', brokenBlocks: '', notes: '' })
       setSaved(true)

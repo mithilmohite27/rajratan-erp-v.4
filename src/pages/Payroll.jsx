@@ -1,10 +1,43 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
-import { loadPayroll, savePayrollEntry, loadProduction, saveCashFlowEntry } from '../lib/sheets.js'
+import { loadPayroll, loadProduction } from '../lib/sheets.js'
 import { formatINR, today } from '../lib/formulas.js'
+import { confirmDuplicateSave } from '../lib/safety.js'
 
 // Labour cost = auto-calculated from Production_Log (LabourCost column)
 // Advance = manual entry, synced to CashFlow with account source
+
+async function savePayrollViaBackend(entry, accessToken, force = false) {
+  const token = sessionStorage.getItem('gToken') || accessToken
+  if (!token) throw new Error('Session expired. Please sign in again.')
+
+  const res = await fetch('/api/payroll', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ entry: { ...entry, force } }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+  if (payload.duplicate) return { duplicate: true, message: payload.message }
+
+  if (!res.ok || !payload.ok) {
+    const message = payload.message || 'Payroll entry save failed.'
+    if (res.status === 401) throw new Error(`Session expired or invalid login. ${message}`)
+    if (res.status === 403) throw new Error(`Access denied. ${message}`)
+    if (payload.code === 'INVALID_PAYROLL_ENTRY' || payload.code === 'INVALID_AMOUNT') {
+      throw new Error(`Invalid payroll entry. ${message}`)
+    }
+    if (payload.code === 'PAYROLL_SAVE_FAILED') {
+      throw new Error(`Backend not configured or payroll save failed. ${message}`)
+    }
+    throw new Error(message)
+  }
+
+  return payload
+}
 
 export default function Payroll() {
   const { accessToken, config } = useApp()
@@ -60,11 +93,12 @@ export default function Payroll() {
 
   // ── Save advance — also syncs to CashFlow ─────
   const handleAdvance = async () => {
+    if (saving) return
     if (!advForm.workerName || !advForm.amount) { setError('Worker name and amount required.'); return }
     setSaving(true); setError('')
     try {
-      // 1. Save to Payroll_Log
-      await savePayrollEntry(accessToken, {
+      const amount = parseFloat(advForm.amount)
+      const entry = {
         date:       advForm.date,
         workerName: advForm.workerName,
         type:       'Advance',
@@ -72,16 +106,18 @@ export default function Payroll() {
         wageRate:   0,
         amount:     parseFloat(advForm.amount),
         notes:      advForm.notes || `Advance - ${advForm.source} account`,
-      })
-      // 2. Sync to CashFlow_Log — deducts from selected account balance
-      await saveCashFlowEntry(accessToken, {
-        date:        advForm.date,
-        type:        'Out',
-        source:      advForm.source,
-        amount:      parseFloat(advForm.amount),
-        description: `Labour Advance — ${advForm.workerName}`,
-        vendorName:  '',
-      })
+        source:     advForm.source,
+      }
+      const result = await savePayrollViaBackend(entry, accessToken)
+
+      if (result.duplicate) {
+        if (!confirmDuplicateSave('payroll advance', 1)) {
+          setSaving(false)
+          return
+        }
+        await savePayrollViaBackend(entry, accessToken, true)
+      }
+
       setRefresh(v => v + 1)
       setAdvForm({ date: today(), workerName: '', amount: '', source: 'Factory', notes: '' })
       flash(`✅ Advance saved + ${advForm.source} account debited!`)

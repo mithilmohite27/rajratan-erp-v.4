@@ -1,54 +1,108 @@
-// ─────────────────────────────────────────────
-//  config.js — Default config & config context
-// ─────────────────────────────────────────────
-
 export const DEFAULT_CONFIG = {
-  // Greet multipliers
-  ghamela_g:       17,
-  weight_g:        17,
-  // Powder multipliers
-  ghamela_p:       12,
-  weight_p:        18,
-  // Chemical
-  litre_m:         1,
-  ml_c:            0.5,
-  // Color split ratios
-  yellowRatio:     0.5,
-  redRatio:        0.5,
-  // Reti
+  // Production calculation keys
+  ghamela_g: 17,
+  weight_g: 17,
+  ghamela_p: 12,
+  weight_p: 18,
+  litre_m: 1,
+  ml_c: 0.5,
+  yellowRatio: 0.5,
+  redRatio: 0.5,
   reti_multiplier: 3,
-  // Plastic
-  plastic_ml:      180,
-  // Rates (₹)
-  cementRate:      340,
-  greetRate:       600,
-  powderRate:      450,
-  chemicalRate:    25,
-  colorRate:       135,
-  plasticRate:     100,
-  retiRate:        30,
-  labourRate:      1.80,
-  miscDefault:     1000,
+  plastic_ml: 180,
+  cementRate: 340,
+  greetRate: 600,
+  powderRate: 450,
+  chemicalRate: 25,
+  colorRate: 135,
+  plasticRate: 100,
+  retiRate: 30,
+  labourRate: 1.80,
+  miscDefault: 1000,
+
+  // Business profile keys
+  COMPANY_NAME: 'RAJ RATAN ENTERPRISE',
+  FACTORY_NAME: 'Rajratan Enterprises',
+  BUSINESS_ADDRESS: 'H.NO.628, CHUNKHADA FALIYU HANUMANBARI\nHANUMANBARI 396580\nGujarat, India',
+  BUSINESS_PHONE: '8141680323',
+  BUSINESS_EMAIL: '',
+  OWNER_NAME: '',
+  BUSINESS_LOCATION: 'Gujarat',
+
+  // Billing / GST keys
+  GST_NUMBER: '24AOUPM1117L1ZP',
+  INVOICE_PREFIX: 'INV',
+  CHALLAN_PREFIX: 'CHN',
+  DEFAULT_GST_RATE: 18,
+  BANK_NAME: 'BARODA GUJARAT GRAMIN BANK',
+  BANK_ACCOUNT_NAME: 'RAJ RATAN ENTERPRISE',
+  BANK_ACCOUNT_NUMBER: '30670200000471',
+  IFSC_CODE: 'BARB0BGGBXX',
+  PAYMENT_TERMS: '',
+  INVOICE_FOOTER_NOTE: '',
+
+  // Branding keys
+  APP_NAME: 'Rajratan ERP',
+  POWERED_BY_TEXT: 'Premium factory workspace',
 }
 
+export const PRODUCTION_CONFIG_KEYS = [
+  'ghamela_g', 'weight_g', 'ghamela_p', 'weight_p',
+  'litre_m', 'ml_c', 'yellowRatio', 'redRatio',
+  'reti_multiplier', 'plastic_ml', 'cementRate', 'greetRate',
+  'powderRate', 'chemicalRate', 'colorRate', 'plasticRate',
+  'retiRate', 'labourRate', 'miscDefault',
+]
+
+export const BUSINESS_PROFILE_KEYS = [
+  'COMPANY_NAME', 'FACTORY_NAME', 'BUSINESS_ADDRESS', 'BUSINESS_PHONE',
+  'BUSINESS_EMAIL', 'OWNER_NAME', 'BUSINESS_LOCATION', 'APP_NAME',
+  'POWERED_BY_TEXT',
+]
+
+export const BILLING_CONFIG_KEYS = [
+  'GST_NUMBER', 'INVOICE_PREFIX', 'CHALLAN_PREFIX', 'DEFAULT_GST_RATE',
+  'BANK_NAME', 'BANK_ACCOUNT_NAME', 'BANK_ACCOUNT_NUMBER', 'IFSC_CODE',
+  'PAYMENT_TERMS', 'INVOICE_FOOTER_NOTE',
+]
+
 export const CONFIG_LABELS = {
-  ghamela_g:       'Greet Ghamela (default 17)',
-  weight_g:        'Greet Weight per Ghamela kg (default 17)',
-  ghamela_p:       'Powder Ghamela (default 12)',
-  weight_p:        'Powder Weight per Ghamela kg (default 18)',
-  litre_m:         'Chemical per Mortar Cement bag (L)',
-  ml_c:            'Chemical per Color Cement bag (L)',
-  yellowRatio:     'Yellow Color Split Ratio (0.5 = 50%)',
-  redRatio:        'Red Color Split Ratio (0.5 = 50%)',
+  ghamela_g: 'Greet Ghamela (default 17)',
+  weight_g: 'Greet Weight per Ghamela kg (default 17)',
+  ghamela_p: 'Powder Ghamela (default 12)',
+  weight_p: 'Powder Weight per Ghamela kg (default 18)',
+  litre_m: 'Chemical per Mortar Cement bag (L)',
+  ml_c: 'Chemical per Color Cement bag (L)',
+  yellowRatio: 'Yellow Color Split Ratio (0.5 = 50%)',
+  redRatio: 'Red Color Split Ratio (0.5 = 50%)',
   reti_multiplier: 'Reti Ghamela per Color Cement bag',
-  plastic_ml:      'Plastic ml per Color Cement bag',
-  cementRate:      'Cement Rate (₹/bag)',
-  greetRate:       'Greet Rate (₹/ton)',
-  powderRate:      'Powder Rate (₹/ton)',
-  chemicalRate:    'Chemical Rate (₹/litre)',
-  colorRate:       'Color Rate (₹/kg)',
-  plasticRate:     'Plastic Cost (₹ flat)',
-  retiRate:        'Reti Rate (₹/ghamela)',
-  labourRate:      'Labour Rate (₹/block)',
-  miscDefault:     'Default Miscellaneous Expense (₹)',
+  plastic_ml: 'Plastic ml per Color Cement bag',
+  cementRate: 'Cement Rate (Rs/bag)',
+  greetRate: 'Greet Rate (Rs/ton)',
+  powderRate: 'Powder Rate (Rs/ton)',
+  chemicalRate: 'Chemical Rate (Rs/litre)',
+  colorRate: 'Color Rate (Rs/kg)',
+  plasticRate: 'Plastic Cost (Rs flat)',
+  retiRate: 'Reti Rate (Rs/ghamela)',
+  labourRate: 'Labour Rate (Rs/block)',
+  miscDefault: 'Default Miscellaneous Expense (Rs)',
+  COMPANY_NAME: 'Company Name',
+  FACTORY_NAME: 'Factory Name',
+  BUSINESS_ADDRESS: 'Business Address',
+  BUSINESS_PHONE: 'Business Phone',
+  BUSINESS_EMAIL: 'Business Email',
+  OWNER_NAME: 'Owner Name',
+  BUSINESS_LOCATION: 'Business Location',
+  GST_NUMBER: 'GST Number',
+  INVOICE_PREFIX: 'Invoice Prefix',
+  CHALLAN_PREFIX: 'Challan Prefix',
+  DEFAULT_GST_RATE: 'Default GST Rate (%)',
+  BANK_NAME: 'Bank Name',
+  BANK_ACCOUNT_NAME: 'Bank Account Name',
+  BANK_ACCOUNT_NUMBER: 'Bank Account Number',
+  IFSC_CODE: 'IFSC Code',
+  PAYMENT_TERMS: 'Payment Terms',
+  INVOICE_FOOTER_NOTE: 'Invoice Footer Note',
+  APP_NAME: 'App Name',
+  POWERED_BY_TEXT: 'Powered By Text',
 }
