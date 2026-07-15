@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../App.jsx'
 import { loadCRM } from '../lib/sheets.js'
 import { brassToBlocks, formatINR, formatNum, today } from '../lib/formulas.js'
 import { confirmDuplicateSave } from '../lib/safety.js'
+import {
+  filterCrmHistory,
+  groupActivitiesByDate,
+  normalizeCrmHistoryRows,
+  relativeCrmDateLabel,
+  summarizeCrmHistory,
+} from '../lib/crmHistory.js'
 
 const COLORS     = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI      = { Red: '', Yellow: '', Black: '', White: '' }
@@ -116,6 +123,69 @@ function StatusBadge({ status }) {
     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${map[status] || 'bg-gray-100 text-gray-500'}`}>
       {status}
     </span>
+  )
+}
+
+function ColorDot({ color }) {
+  const map = {
+    Red: 'bg-red-500 border-red-500',
+    Yellow: 'bg-yellow-400 border-yellow-400',
+    Black: 'bg-gray-900 border-gray-900',
+    White: 'bg-white border-gray-300',
+  }
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full border ${map[color] || 'bg-gray-300 border-gray-300'}`} />
+}
+
+function HistorySummaryCard({ label, value, helper }) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="mt-1 text-lg font-extrabold text-gray-900">{value}</p>
+      {helper && <p className="mt-0.5 text-[11px] text-gray-400">{helper}</p>}
+    </div>
+  )
+}
+
+function ActivityRow({ activity }) {
+  const isDispatch = activity.type === 'dispatch'
+  const detailParts = [
+    activity.color,
+    activity.brass > 0 ? `${formatNum(activity.brass, 2)} brass` : '',
+    activity.blocks > 0 ? `${Math.round(activity.blocks).toLocaleString('en-IN')} blocks` : '',
+    isDispatch ? activity.transportType : activity.location,
+    !isDispatch && activity.ratePerBrass > 0 ? `${formatINR(activity.ratePerBrass)}/brass` : '',
+    isDispatch && activity.loadingCharge > 0 ? `Loading ${formatINR(activity.loadingCharge)}` : '',
+  ].filter(Boolean)
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black
+              ${isDispatch ? 'border-green-200 bg-green-50 text-green-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+              {isDispatch ? 'D' : 'O'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-extrabold text-gray-900">{activity.clientName || 'Unknown client'}</p>
+                {activity.color && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-bold text-gray-600">
+                    <ColorDot color={activity.color} />
+                    {activity.color}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500">{detailParts.join(' - ')}</p>
+              {activity.notes && <p className="mt-1 text-xs italic text-gray-400">{activity.notes}</p>}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+          <StatusBadge status={isDispatch ? 'Dispatched' : 'Order'} />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -260,6 +330,14 @@ export default function CRM() {
   const [refresh, setRefresh] = useState(0)
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState('')
+  const [historyFilters, setHistoryFilters] = useState({
+    search: '',
+    dateRange: 'all',
+    startDate: '',
+    endDate: '',
+    type: 'all',
+    color: 'all',
+  })
 
   // New order form
   const [orderForm,  setOrderForm]  = useState({ date: today(), clientName: '', location: '', rate: '', notes: '' })
@@ -286,6 +364,24 @@ export default function CRM() {
   // Build ledger
   const clients    = buildClients(rows)
   const clientList = Object.values(clients)
+  const historyActivities = useMemo(() => normalizeCrmHistoryRows(rows), [rows])
+  const filteredHistory = useMemo(
+    () => filterCrmHistory(historyActivities, historyFilters),
+    [historyActivities, historyFilters]
+  )
+  const groupedHistory = useMemo(() => groupActivitiesByDate(filteredHistory), [filteredHistory])
+  const historySummary = useMemo(() => summarizeCrmHistory(filteredHistory), [filteredHistory])
+  const hasActiveHistoryFilters = historyFilters.search || historyFilters.dateRange !== 'all' || historyFilters.type !== 'all' || historyFilters.color !== 'all'
+
+  const setHistoryFilter = (key, value) => setHistoryFilters(prev => ({ ...prev, [key]: value }))
+  const clearHistoryFilters = () => setHistoryFilters({
+    search: '',
+    dateRange: 'all',
+    startDate: '',
+    endDate: '',
+    type: 'all',
+    color: 'all',
+  })
 
   // Order form helpers
   const orderedColors    = COLORS.filter(c => parseFloat(colorBrass[c]) > 0)
@@ -390,7 +486,7 @@ export default function CRM() {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className={`${tab === 'history' ? 'max-w-5xl' : 'max-w-lg'} mx-auto`}>
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Client CRM</h1>
@@ -525,6 +621,125 @@ export default function CRM() {
           </button>
         </>}
 
+        {/* HISTORY */}
+        {tab === 'history' && (
+          loading
+            ? <div className="text-center py-8 text-gray-400">Loading history...</div>
+            : historyActivities.length === 0
+              ? (
+                <div className="rounded-3xl border border-gray-100 bg-white px-6 py-16 text-center text-gray-400 shadow-sm">
+                  <p className="font-bold text-gray-700">No CRM activity found</p>
+                  <p className="mt-1 text-sm">Orders and dispatch activity will appear here.</p>
+                </div>
+              )
+              : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <HistorySummaryCard label="Total Activities" value={historySummary.totalActivities} />
+                    <HistorySummaryCard label="Orders" value={historySummary.orders} />
+                    <HistorySummaryCard label="Dispatches" value={historySummary.dispatches} />
+                    <HistorySummaryCard label="Total Brass" value={formatNum(historySummary.totalBrass, 2)} helper="Orders + dispatches" />
+                  </div>
+
+                  <div className="rounded-3xl border border-gray-100 bg-white p-3 shadow-sm">
+                    <div className="grid gap-2 md:grid-cols-5">
+                      <input
+                        value={historyFilters.search}
+                        onChange={e => setHistoryFilter('search', e.target.value)}
+                        placeholder="Search client"
+                        className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white md:col-span-2"
+                      />
+                      <select
+                        value={historyFilters.dateRange}
+                        onChange={e => setHistoryFilter('dateRange', e.target.value)}
+                        className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white"
+                      >
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="last7">Last 7 Days</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                      </select>
+                      <select
+                        value={historyFilters.type}
+                        onChange={e => setHistoryFilter('type', e.target.value)}
+                        className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white"
+                      >
+                        <option value="all">All Activities</option>
+                        <option value="order">Orders</option>
+                        <option value="dispatch">Dispatches</option>
+                      </select>
+                      <select
+                        value={historyFilters.color}
+                        onChange={e => setHistoryFilter('color', e.target.value)}
+                        className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white"
+                      >
+                        <option value="all">All Colors</option>
+                        {COLORS.map(color => <option key={color} value={color}>{color}</option>)}
+                      </select>
+                    </div>
+
+                    {historyFilters.dateRange === 'custom' && (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        <input
+                          type="date"
+                          value={historyFilters.startDate}
+                          onChange={e => setHistoryFilter('startDate', e.target.value)}
+                          className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white"
+                        />
+                        <input
+                          type="date"
+                          value={historyFilters.endDate}
+                          onChange={e => setHistoryFilter('endDate', e.target.value)}
+                          className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-orange-300 focus:bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {hasActiveHistoryFilters && (
+                      <button
+                        type="button"
+                        onClick={clearHistoryFilters}
+                        className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-600"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
+
+                  {groupedHistory.length === 0 ? (
+                    <div className="rounded-3xl border border-gray-100 bg-white px-6 py-16 text-center text-gray-400 shadow-sm">
+                      <p className="font-bold text-gray-700">No activity matches the selected filters.</p>
+                      <p className="mt-1 text-sm">Adjust the search, date, type, or color filter.</p>
+                    </div>
+                  ) : groupedHistory.map(group => {
+                    const relativeLabel = relativeCrmDateLabel(group.dateKey)
+                    return (
+                      <section key={group.dateKey} className="overflow-hidden rounded-3xl border border-gray-100 bg-gray-50 shadow-sm">
+                        <div className="sticky top-14 z-10 flex flex-col gap-1 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h2 className="text-base font-extrabold text-gray-900">{group.label}</h2>
+                              {relativeLabel && (
+                                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-orange-600">{relativeLabel}</span>
+                              )}
+                            </div>
+                            <p className="mt-0.5 text-xs font-semibold text-gray-400">
+                              {group.summary.totalActivities} Activities - {group.summary.orders} Orders - {group.summary.dispatches} Dispatches
+                            </p>
+                          </div>
+                          <p className="text-xs font-bold text-gray-500">{formatNum(group.summary.totalBrass, 2)} brass</p>
+                        </div>
+                        <div className="space-y-2 p-3">
+                          {group.activities.map(activity => <ActivityRow key={activity.id} activity={activity} />)}
+                        </div>
+                      </section>
+                    )
+                  })}
+                </div>
+              )
+        )}
+
         {/* ══ DISPATCH ══ */}
         {tab === 'dispatch' && <>
           <div className="bg-green-50 border border-green-200 rounded-2xl p-3 text-xs text-green-700">
@@ -655,7 +870,7 @@ export default function CRM() {
         </>}
 
                 {/* ══ HISTORY ══ */}
-        {tab === 'history' && (
+        {tab === 'historyLegacy' && (
           loading
             ? <div className="text-center py-8 text-gray-400"> Loading...</div>
             : rows.length === 0
