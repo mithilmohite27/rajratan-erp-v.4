@@ -34,7 +34,7 @@ const GROUPS = [
   {
     title: 'Color Pigment Usage',
     subtitle: 'Used for color cost and production material planning.',
-    keys: ['yellowRatio', 'redRatio', 'colorRate'],
+    keys: ['yellowRatio', 'redRatio', 'blackRatio', 'whiteRatio', 'colorRate'],
   },
   {
     title: 'Plastic / Shiner / Reti / Misc',

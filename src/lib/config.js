@@ -8,6 +8,8 @@ export const DEFAULT_CONFIG = {
   ml_c: 0.5,
   yellowRatio: 0.5,
   redRatio: 0.5,
+  blackRatio: 0.5,
+  whiteRatio: 0.5,
   reti_multiplier: 3,
   plastic_ml: 180,
   cementRate: 340,
@@ -48,7 +50,7 @@ export const DEFAULT_CONFIG = {
 
 export const PRODUCTION_CONFIG_KEYS = [
   'ghamela_g', 'weight_g', 'ghamela_p', 'weight_p',
-  'litre_m', 'ml_c', 'yellowRatio', 'redRatio',
+  'litre_m', 'ml_c', 'yellowRatio', 'redRatio', 'blackRatio', 'whiteRatio',
   'reti_multiplier', 'plastic_ml', 'cementRate', 'greetRate',
   'powderRate', 'chemicalRate', 'colorRate', 'plasticRate',
   'retiRate', 'labourRate', 'miscDefault',
@@ -75,6 +77,8 @@ export const CONFIG_LABELS = {
   ml_c: 'Chemical per Color Cement bag (L)',
   yellowRatio: 'Yellow Color Split Ratio (0.5 = 50%)',
   redRatio: 'Red Color Split Ratio (0.5 = 50%)',
+  blackRatio: 'Black Color Split Ratio (0.5 = 50%)',
+  whiteRatio: 'White Color Split Ratio (0.5 = 50%)',
   reti_multiplier: 'Reti Ghamela per Color Cement bag',
   plastic_ml: 'Plastic ml per Color Cement bag',
   cementRate: 'Cement Rate (Rs/bag)',

@@ -604,6 +604,7 @@ export async function seedStaticData(accessToken, today) {
       ['ghamela_p', 12], ['weight_p', 18],
       ['litre_m', 1], ['ml_c', 0.5],
       ['yellowRatio', 0.5], ['redRatio', 0.5],
+      ['blackRatio', 0.5], ['whiteRatio', 0.5],
       ['reti_multiplier', 3], ['plastic_ml', 180],
       ['cementRate', 340], ['greetRate', 600],
       ['powderRate', 450], ['chemicalRate', 25],

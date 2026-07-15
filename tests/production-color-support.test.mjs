@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { calcProduction, calcDailyCost, blocksToBrass } from '../src/lib/formulas.js'
+import { DEFAULT_CONFIG } from '../src/lib/config.js'
 import { consumptionFromProductionRow, MATERIAL_IDS, normalizeVendorMaterial } from '../src/lib/materials.js'
 import { validateProductionPayload, findProductionDuplicate } from '../api/_lib/productionValidation.js'
+import { validateConfigPayload } from '../api/_lib/configValidation.js'
+import { planBlackWhiteParityRepair } from '../api/_lib/googleSheets.js'
 
 const config = {
   ghamela_g: 17,
@@ -12,6 +15,8 @@ const config = {
   ml_c: 0.5,
   yellowRatio: 0.5,
   redRatio: 0.5,
+  blackRatio: 0.5,
+  whiteRatio: 0.5,
   colorRate: 135,
   cementRate: 340,
   greetRate: 600,
@@ -63,6 +68,22 @@ assert.equal(allCalc.blackFinal, 6)
 assert.equal(allCalc.whiteFinal, 8)
 assert.equal(allCost.colorCost, 10 * config.colorRate)
 
+const customBlackWhiteRatios = calcProduction(productionFor({ colorCement: 4, blackKG: 2, whiteKG: 2 }), {
+  ...config,
+  blackRatio: 0.25,
+  whiteRatio: 0.75,
+})
+assert.equal(customBlackWhiteRatios.blackShare, 1)
+assert.equal(customBlackWhiteRatios.whiteShare, 3)
+
+const legacyConfigFallback = calcProduction(productionFor({ colorCement: 4, blackKG: 2, whiteKG: 2 }), {
+  ...config,
+  blackRatio: undefined,
+  whiteRatio: undefined,
+})
+assert.equal(legacyConfigFallback.blackShare, 2)
+assert.equal(legacyConfigFallback.whiteShare, 2)
+
 const zeroColors = productionFor()
 const zeroCalc = calcProduction(zeroColors, config)
 const zeroCost = calcDailyCost(zeroColors, zeroCalc, config)
@@ -100,6 +121,43 @@ assert.equal(newRowConsumption.Black, 3)
 assert.equal(newRowConsumption.White, 4)
 assert.ok(MATERIAL_IDS.includes('White'))
 assert.equal(normalizeVendorMaterial('white pigment'), 'White')
+
+assert.equal(DEFAULT_CONFIG.blackRatio, 0.5)
+assert.equal(DEFAULT_CONFIG.whiteRatio, 0.5)
+
+const validBlackWhiteConfig = validateConfigPayload({
+  config: {
+    blackRatio: 0.5,
+    whiteRatio: 0.5,
+  },
+})
+assert.equal(validBlackWhiteConfig.ok, true)
+
+const invalidZeroBlackRatio = validateConfigPayload({ config: { blackRatio: 0 } })
+assert.equal(invalidZeroBlackRatio.ok, false)
+
+const parityPlan = planBlackWhiteParityRepair({
+  productionHeaders: [
+    'Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement',
+    'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG',
+    'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses',
+    'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost',
+    'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost',
+  ],
+  configRows: [['yellowRatio', 0.5], ['redRatio', 0.5]],
+})
+assert.deepEqual(parityPlan.missingProductionHeaders, ['BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal'])
+assert.deepEqual(parityPlan.missingConfigKeys, ['blackRatio', 'whiteRatio'])
+assert.equal(parityPlan.changes.length, 6)
+
+const parityAlreadyOk = planBlackWhiteParityRepair({
+  productionHeaders: [
+    'Date', 'Blocks', 'BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal',
+  ],
+  configRows: [['blackRatio', 0.5], ['whiteRatio', 0.5]],
+})
+assert.equal(parityAlreadyOk.alreadyOk, true)
+assert.equal(parityAlreadyOk.changes.length, 0)
 
 const validPayload = validateProductionPayload({
   entry: {

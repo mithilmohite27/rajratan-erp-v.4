@@ -9,6 +9,7 @@ import {
   readOpeningMaterialStockRows,
   readOpeningStockRows,
   readProductionVariantRows,
+  repairBlackWhiteParity,
   seedStaticDataIfEmpty,
 } from './_lib/googleSheets.js'
 import { MODULES, requireRoleOrPermission } from './_lib/permissions.js'
@@ -70,6 +71,18 @@ export default async function handler(req, res) {
         action: validation.action,
         seeded,
         schemaChanged: false,
+      })
+      return
+    }
+
+    if (validation.action === 'repair_black_white_parity') {
+      const result = await repairBlackWhiteParity({ dryRun: validation.dryRun })
+      ok(res, {
+        message: validation.dryRun
+          ? 'Black/White parity check completed.'
+          : 'Black/White parity repair completed.',
+        action: validation.action,
+        ...result,
       })
       return
     }

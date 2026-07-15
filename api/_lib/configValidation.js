@@ -7,6 +7,8 @@ export const PRODUCTION_CONFIG_KEYS = [
   'ml_c',
   'yellowRatio',
   'redRatio',
+  'blackRatio',
+  'whiteRatio',
   'reti_multiplier',
   'plastic_ml',
   'cementRate',

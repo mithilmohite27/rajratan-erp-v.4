@@ -4,6 +4,7 @@ const SETUP_ACTIONS = new Set([
   'opening_material_stock',
   'production_csv_import',
   'crm_csv_import',
+  'repair_black_white_parity',
 ])
 
 const COLORS = new Set(['Red', 'Yellow', 'Black', 'White'])
@@ -125,6 +126,16 @@ export function validateSetupPayload(payload = {}) {
 
   if (action === 'seed_headers') {
     return { ok: true, action, force: Boolean(payload.force), confirmHighRisk: true }
+  }
+
+  if (action === 'repair_black_white_parity') {
+    return {
+      ok: true,
+      action,
+      dryRun: payload.dryRun !== false,
+      force: Boolean(payload.force),
+      confirmHighRisk: true,
+    }
   }
 
   const rows = Array.isArray(payload.rows)

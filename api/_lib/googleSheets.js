@@ -12,6 +12,8 @@ export const DEFAULT_CONFIG = {
   ml_c: 0.5,
   yellowRatio: 0.5,
   redRatio: 0.5,
+  blackRatio: 0.5,
+  whiteRatio: 0.5,
   reti_multiplier: 3,
   plastic_ml: 180,
   cementRate: 340,
@@ -42,6 +44,50 @@ export const DEFAULT_CONFIG = {
   INVOICE_FOOTER_NOTE: '',
   APP_NAME: 'Rajratan ERP',
   POWERED_BY_TEXT: 'Premium factory workspace',
+}
+
+export const BLACK_WHITE_PRODUCTION_HEADERS = ['BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal']
+export const BLACK_WHITE_CONFIG_DEFAULTS = {
+  blackRatio: 0.5,
+  whiteRatio: 0.5,
+}
+
+const PRODUCTION_LOG_HEADERS = [
+  'Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement',
+  'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG',
+  'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses',
+  'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost',
+  'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost',
+  ...BLACK_WHITE_PRODUCTION_HEADERS,
+]
+
+function cleanKey(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+export function planBlackWhiteParityRepair({ productionHeaders = [], configRows = [] } = {}) {
+  const existingHeaders = Array.isArray(productionHeaders) ? productionHeaders : []
+  const existingConfigRows = Array.isArray(configRows) ? configRows : []
+  const headerSet = new Set(existingHeaders.map(cleanKey))
+  const configSet = new Set(existingConfigRows.map(row => cleanKey(Array.isArray(row) ? row[0] : row?.key)))
+  const missingProductionHeaders = BLACK_WHITE_PRODUCTION_HEADERS.filter(header => !headerSet.has(cleanKey(header)))
+  const missingConfigKeys = Object.keys(BLACK_WHITE_CONFIG_DEFAULTS).filter(key => !configSet.has(cleanKey(key)))
+  const changes = [
+    ...missingProductionHeaders.map(name => ({ type: 'production_header', action: 'append', name })),
+    ...missingConfigKeys.map(name => ({
+      type: 'config_key',
+      action: 'append',
+      name,
+      value: BLACK_WHITE_CONFIG_DEFAULTS[name],
+    })),
+  ]
+
+  return {
+    missingProductionHeaders,
+    missingConfigKeys,
+    changes,
+    alreadyOk: changes.length === 0,
+  }
 }
 
 function requiredEnv(name) {
@@ -256,6 +302,41 @@ export async function saveConfigMerge(incomingConfig) {
   }, { ...DEFAULT_CONFIG })
 }
 
+export async function repairBlackWhiteParity({ dryRun = true } = {}) {
+  const headerRows = await readSheetRange('Production_Log!1:1').catch(error => {
+    if (error.code === 'SHEET_RANGE_NOT_FOUND') return []
+    throw error
+  })
+  const configRows = await readConfigRows().catch(error => {
+    if (error.code === 'SHEET_RANGE_NOT_FOUND') return []
+    throw error
+  })
+  const productionHeaders = headerRows[0] || []
+  const plan = planBlackWhiteParityRepair({ productionHeaders, configRows })
+
+  if (!dryRun && plan.missingProductionHeaders.length > 0) {
+    const nextHeaders = productionHeaders.length
+      ? [...productionHeaders, ...plan.missingProductionHeaders]
+      : PRODUCTION_LOG_HEADERS
+    await updateSheetRange('Production_Log!A1', [nextHeaders])
+  }
+
+  if (!dryRun && plan.missingConfigKeys.length > 0) {
+    await appendSheetRows(
+      'Config!A:A',
+      plan.missingConfigKeys.map(key => [key, BLACK_WHITE_CONFIG_DEFAULTS[key]])
+    )
+  }
+
+  return {
+    dryRun,
+    ...plan,
+    materialSupport: ['Black', 'White'],
+    schemaChanged: !dryRun && plan.missingProductionHeaders.length > 0,
+    writesPerformed: !dryRun && plan.changes.length > 0,
+  }
+}
+
 function rowsToObjects(rows) {
   if (!rows || rows.length < 2) return []
   const [headers, ...data] = rows
@@ -418,6 +499,7 @@ export async function seedStaticDataIfEmpty() {
     ['ghamela_p', 12], ['weight_p', 18],
     ['litre_m', 1], ['ml_c', 0.5],
     ['yellowRatio', 0.5], ['redRatio', 0.5],
+    ['blackRatio', 0.5], ['whiteRatio', 0.5],
     ['reti_multiplier', 3], ['plastic_ml', 180],
     ['cementRate', 340], ['greetRate', 600], ['powderRate', 450],
     ['chemicalRate', 25], ['colorRate', 135], ['plasticRate', 100],
@@ -438,7 +520,7 @@ export async function seedStaticDataIfEmpty() {
 
   const headerSeeds = [
     ['Opening_Stock', ['Color', 'Blocks', 'SetupDate', 'Notes']],
-    ['Production_Log', ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost', 'BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal']],
+    ['Production_Log', PRODUCTION_LOG_HEADERS],
     ['Production_Variants', ['Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes']],
     ['CRM_Log', ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes']],
     ['QC_Log', ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes']],

@@ -7,9 +7,11 @@ import { confirmSheetWrite, confirmDuplicateSave } from '../lib/safety.js'
 const COLORS = ['Red', 'Yellow', 'Black', 'White']
 const EMOJI  = { Red: 'Red', Yellow: 'Yellow', Black: 'Black', White: 'White' }
 
-async function runSetupAction(action, rows, accessToken, { force = false, confirmHighRisk = true } = {}) {
+async function runSetupAction(action, rows, accessToken, { force = false, confirmHighRisk = true, dryRun } = {}) {
   const token = sessionStorage.getItem('gToken') || accessToken
   if (!token) throw new Error('Session expired. Please sign in again.')
+  const body = { action, rows, force, confirmHighRisk }
+  if (dryRun !== undefined) body.dryRun = dryRun
 
   const res = await fetch('/api/setup', {
     method: 'POST',
@@ -17,7 +19,7 @@ async function runSetupAction(action, rows, accessToken, { force = false, confir
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ action, rows, force, confirmHighRisk }),
+    body: JSON.stringify(body),
   })
 
   const payload = await res.json().catch(() => ({}))
@@ -70,6 +72,8 @@ export default function Setup() {
   // Step 1: Seed
   const [seeding,   setSeeding]   = useState(false)
   const [seeded,    setSeeded]    = useState(false)
+  const [repairing, setRepairing] = useState(false)
+  const [repairResult, setRepairResult] = useState(null)
 
   // Step 2: Opening stock
   const [stockDate,    setStockDate]    = useState(today())
@@ -105,6 +109,18 @@ export default function Setup() {
       setActiveStep(2)
     } catch (e) { setError('Seed failed: ' + e.message) }
     setSeeding(false)
+  }
+
+  const handleBlackWhiteRepair = async (dryRun = true) => {
+    if (!dryRun && !confirmSheetWrite('This will append missing Black/White production headers and Config keys if they are absent. Use only after backup.')) return
+
+    setRepairing(true); setError('')
+    try {
+      const result = await runSetupAction('repair_black_white_parity', [], accessToken, { dryRun })
+      setRepairResult(result)
+      flash(dryRun ? 'Black/White parity check completed.' : 'Black/White parity repair completed.')
+    } catch (e) { setError('Black/White parity check failed: ' + e.message) }
+    setRepairing(false)
   }
 
   // Step 2: Opening stock
@@ -299,6 +315,50 @@ export default function Setup() {
                   {seeding ? 'Seeding Google Sheets...' : 'Seed Database Now'}
                 </button>
               )}
+
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-bold text-amber-900">Black/White parity repair</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                  Use dry-run first to check whether Production_Log is missing trailing Black/White columns or Config is missing Black/White ratios.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => handleBlackWhiteRepair(true)}
+                    disabled={repairing}
+                    className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-700 disabled:opacity-60"
+                  >
+                    {repairing ? 'Checking...' : 'Dry-run Check'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBlackWhiteRepair(false)}
+                    disabled={repairing}
+                    className="rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                  >
+                    Repair Missing Items
+                  </button>
+                </div>
+                {repairResult && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-white p-3 text-xs text-gray-600">
+                    <p className="font-bold text-gray-800">
+                      {repairResult.alreadyOk ? 'All Black/White parity checks passed.' : `${repairResult.changes?.length || 0} missing item(s) found.`}
+                    </p>
+                    {!repairResult.alreadyOk && (
+                      <ul className="mt-2 list-disc space-y-1 pl-4">
+                        {(repairResult.changes || []).map(change => (
+                          <li key={`${change.type}-${change.name}`}>
+                            {change.type === 'production_header' ? 'Production_Log header' : 'Config key'}: {change.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="mt-2 text-gray-500">
+                      Mode: {repairResult.dryRun ? 'dry-run only, no write' : 'confirmed repair'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             {seeded && (
               <button onClick={() => setActiveStep(2)} className="w-full border border-orange-300 text-orange-500 font-bold py-3 rounded-xl">
