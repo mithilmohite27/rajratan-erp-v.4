@@ -5,7 +5,7 @@ import { brassToBlocks, formatINR, formatNum, today } from '../lib/formulas.js'
 import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS     = ['Red', 'Yellow', 'Black', 'White']
-const EMOJI      = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
+const EMOJI      = { Red: '', Yellow: '', Black: '', White: '' }
 const COLOR_BG   = { Red: 'border-red-200 bg-red-50', Yellow: 'border-yellow-200 bg-yellow-50', Black: 'border-gray-300 bg-gray-100', White: 'border-blue-200 bg-blue-50' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
 
@@ -143,7 +143,7 @@ function ClientCard({ client, onDispatch }) {
         <div className="flex justify-between items-start mb-3">
           <div>
             <p className="font-bold text-gray-900 text-base">{client.name}</p>
-            {client.location && <p className="text-xs text-gray-400 mt-0.5">📍 {client.location}</p>}
+            {client.location && <p className="text-xs text-gray-400 mt-0.5"> {client.location}</p>}
           </div>
           <StatusBadge status={statusLabel} />
         </div>
@@ -202,13 +202,13 @@ function ClientCard({ client, onDispatch }) {
       {/* Dispatch / Complete button */}
       {isComplete ? (
         <div className="text-center text-xs text-green-600 font-bold py-2.5 bg-green-50">
-          ✅ Order Complete — Fully Dispatched
+           Order Complete — Fully Dispatched
         </div>
       ) : (
         <button
           onClick={() => onDispatch(client)}
           className="w-full bg-green-500 active:bg-green-700 text-white text-sm font-bold py-3 transition-colors">
-          🚛 Record Dispatch → Deduct Inventory ({formatNum(totalRemaining,2)} brass left)
+           Record Dispatch → Deduct Inventory ({formatNum(totalRemaining,2)} brass left)
         </button>
       )}
     </div>
@@ -320,7 +320,7 @@ export default function CRM() {
         }
         await saveCRMViaBackend('create_order', entries, accessToken, true)
       }
-      flash(`✅ Order saved — ${orderedColors.length} color${orderedColors.length > 1 ? 's' : ''} · ${formatNum(totalOrderBrass,2)} brass total`)
+      flash(` Order saved — ${orderedColors.length} color${orderedColors.length > 1 ? 's' : ''} · ${formatNum(totalOrderBrass,2)} brass total`)
       setOrderForm({ date: today(), clientName: '', location: '', rate: '', notes: '' })
       setColorBrass(emptyColors())
       setRefresh(v => v + 1)
@@ -366,7 +366,7 @@ export default function CRM() {
         await saveCRMViaBackend('dispatch', entries, accessToken, true)
       }
       const totalBrass = toDispatch.reduce((s, c) => s + parseFloat(dispatchColors[c]), 0)
-      flash(`✅ ${toDispatch.length} color${toDispatch.length>1?'s':''} dispatched (${formatNum(totalBrass,2)} brass) — inventory updated!`)
+      flash(` ${toDispatch.length} color${toDispatch.length>1?'s':''} dispatched (${formatNum(totalBrass,2)} brass) — inventory updated!`)
       setDispatchForm({ date: today(), clientName: '', transport: 'Self-Pickup', transporter: '', freightCharge: '', notes: '' })
       setDispatchColors(emptyDispatchColors())
       setRefresh(v => v + 1)
@@ -399,7 +399,7 @@ export default function CRM() {
 
       {/* Tabs */}
       <div className="flex gap-1.5 px-4 mb-4 overflow-x-auto pb-1">
-        {[['clients','👥 Clients'],['newOrder','+ Order'],['dispatch','🚛 Dispatch'],['history','📋 History']].map(([k,l]) => (
+        {[['clients',' Clients'],['newOrder','+ Order'],['dispatch',' Dispatch'],['history',' History']].map(([k,l]) => (
           <button key={k} onClick={() => { setTab(k); setError('') }}
             className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all
               ${tab===k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-white border border-gray-200 text-gray-500'}`}>
@@ -409,16 +409,16 @@ export default function CRM() {
       </div>
 
       <div className="px-4 space-y-3 pb-6">
-        {error   && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl p-3 flex gap-2"><span>⚠️</span><span>{error}</span></div>}
+        {error   && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl p-3 flex gap-2"><span></span><span>{error}</span></div>}
         {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-2xl p-3 font-semibold text-center">{success}</div>}
 
         {/* ══ CLIENTS LIST ══ */}
         {tab === 'clients' && (
           loading
-            ? <div className="text-center py-16 text-gray-400">⏳ Loading clients...</div>
+            ? <div className="text-center py-16 text-gray-400"> Loading clients...</div>
             : clientList.length === 0
               ? <div className="text-center py-16 text-gray-400">
-                  <div className="text-5xl mb-3">🤝</div>
+                  <div className="text-5xl mb-3"></div>
                   <p className="font-semibold text-gray-600 mb-4">No clients yet</p>
                   <button onClick={() => setTab('newOrder')}
                     className="bg-orange-500 text-white font-bold px-6 py-3 rounded-xl text-sm shadow-lg shadow-orange-200">
@@ -427,7 +427,7 @@ export default function CRM() {
                 </div>
               : <>
                   <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs text-blue-700">
-                    💡 Tap <strong>Record Dispatch</strong> on a client → inventory deducts per color automatically.
+                     Tap <strong>Record Dispatch</strong> on a client → inventory deducts per color automatically.
                   </div>
                   {clientList.map((c, i) => (
                     <ClientCard key={i} client={c} onDispatch={prefillDispatch} />
@@ -443,10 +443,10 @@ export default function CRM() {
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Client Details</p>
 
             {[
-              { label: '📅 Date',           key: 'date',       type: 'date'   },
-              { label: '👤 Client Name',    key: 'clientName', type: 'text',  ph: 'e.g. Ramesh Patel' },
-              { label: '📍 Location',       key: 'location',   type: 'text',  ph: 'e.g. Vansda'       },
-              { label: '💰 Rate (₹/brass)', key: 'rate',       type: 'number',ph: '0'                  },
+              { label: ' Date',           key: 'date',       type: 'date'   },
+              { label: ' Client Name',    key: 'clientName', type: 'text',  ph: 'e.g. Ramesh Patel' },
+              { label: ' Location',       key: 'location',   type: 'text',  ph: 'e.g. Vansda'       },
+              { label: ' Rate (₹/brass)', key: 'rate',       type: 'number',ph: '0'                  },
             ].map(f => (
               <div key={f.key} className="border-b border-gray-50 pb-2">
                 <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
@@ -507,7 +507,7 @@ export default function CRM() {
           )}
 
           <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm">
-            <input type="text" value={orderForm.notes} placeholder="📝 Notes (optional)"
+            <input type="text" value={orderForm.notes} placeholder=" Notes (optional)"
               onChange={e => setOrderForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-sm text-gray-600 outline-none bg-transparent" />
           </div>
@@ -518,9 +518,9 @@ export default function CRM() {
                 ? 'bg-orange-500 text-white shadow-lg shadow-orange-200 active:scale-95'
                 : 'bg-gray-100 text-gray-400'}`}>
             {saving
-              ? '⏳ Saving Order...'
+              ? ' Saving Order...'
               : orderedColors.length > 0
-                ? `💾 Save Order — ${formatNum(totalOrderBrass,2)} brass total`
+                ? ` Save Order — ${formatNum(totalOrderBrass,2)} brass total`
                 : 'Enter qty above to continue'}
           </button>
         </>}
@@ -528,19 +528,19 @@ export default function CRM() {
         {/* ══ DISPATCH ══ */}
         {tab === 'dispatch' && <>
           <div className="bg-green-50 border border-green-200 rounded-2xl p-3 text-xs text-green-700">
-            ✅ <strong>Multi-color dispatch</strong> — enter brass for each color, saves all in one tap. Each color deducts from inventory separately.
+             <strong>Multi-color dispatch</strong> — enter brass for each color, saves all in one tap. Each color deducts from inventory separately.
           </div>
 
           {/* Date + Client */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
             <div className="border-b border-gray-50 pb-2">
-              <label className="text-xs text-gray-400 block mb-1">📅 Date</label>
+              <label className="text-xs text-gray-400 block mb-1"> Date</label>
               <input type="date" value={dispatchForm.date}
                 onChange={e => setDispatchForm(p => ({ ...p, date: e.target.value }))}
                 className="w-full text-base font-bold text-gray-800 outline-none bg-transparent" />
             </div>
             <div>
-              <label className="text-xs text-gray-400 block mb-1">👤 Client</label>
+              <label className="text-xs text-gray-400 block mb-1"> Client</label>
               {clientList.length > 0 ? (
                 <select value={dispatchForm.clientName}
                   onChange={e => {
@@ -570,7 +570,7 @@ export default function CRM() {
 
           {/* Multi-color brass entry */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">🎨 Dispatch Qty by Color (Brass)</label>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1"> Dispatch Qty by Color (Brass)</label>
             <p className="text-xs text-gray-400 mb-3">Pre-filled with remaining balance. Edit as needed.</p>
             <div className="space-y-2">
               {COLORS.map(color => {
@@ -620,13 +620,13 @@ export default function CRM() {
 
           {/* Transport */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-2">🚚 Transport</label>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-2"> Transport</label>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {['Self-Pickup','Company Transport'].map(t => (
                 <button key={t} onClick={() => setDispatchForm(p => ({ ...p, transport: t }))}
                   className={`py-3 rounded-xl text-xs font-bold transition-all
                     ${dispatchForm.transport===t ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-gray-50 border border-gray-200 text-gray-600'}`}>
-                  {t === 'Self-Pickup' ? '🙋 Self-Pickup' : '🚛 Company'}
+                  {t === 'Self-Pickup' ? ' Self-Pickup' : ' Company'}
                 </button>
               ))}
             </div>
@@ -643,36 +643,36 @@ export default function CRM() {
           </div>
 
           <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm">
-            <input type="text" value={dispatchForm.notes} placeholder="📝 Notes (optional)"
+            <input type="text" value={dispatchForm.notes} placeholder=" Notes (optional)"
               onChange={e => setDispatchForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-sm text-gray-700 outline-none bg-transparent" />
           </div>
 
           <button onClick={handleDispatch} disabled={saving}
             className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-green-200 active:scale-95 transition-all">
-            {saving ? '⏳ Saving...' : `✅ Confirm Dispatch — ${COLORS.filter(c=>dispatchColors[c]>0).length} Color${COLORS.filter(c=>dispatchColors[c]>0).length>1?'s':''}`}
+            {saving ? ' Saving...' : ` Confirm Dispatch — ${COLORS.filter(c=>dispatchColors[c]>0).length} Color${COLORS.filter(c=>dispatchColors[c]>0).length>1?'s':''}`}
           </button>
         </>}
 
                 {/* ══ HISTORY ══ */}
         {tab === 'history' && (
           loading
-            ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+            ? <div className="text-center py-8 text-gray-400"> Loading...</div>
             : rows.length === 0
-              ? <div className="text-center py-16 text-gray-400"><div className="text-5xl mb-2">📋</div><p>No entries yet.</p></div>
+              ? <div className="text-center py-16 text-gray-400"><div className="text-5xl mb-2"></div><p>No entries yet.</p></div>
               : [...rows].reverse().map((r, i) => (
                 <div key={i} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm mb-2">
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-gray-900">{r.ClientName}</span>
                     <div className="flex items-center gap-2">
-                      {r.Color && <span className="text-sm">{EMOJI[r.Color] || '🎨'} {r.Color}</span>}
+                      {r.Color && <span className="text-sm">{EMOJI[r.Color] || ''} {r.Color}</span>}
                       <StatusBadge status={r.Status || 'Order'} />
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 space-y-0.5">
-                    <p>{r.Date}{r.Location ? ` · 📍 ${r.Location}` : ''}</p>
-                    {parseFloat(r.OrderBrass)    > 0 && <p>📋 Order: <strong>{r.OrderBrass} brass</strong> @ {formatINR(r.Rate)}/brass</p>}
-                    {parseFloat(r.DispatchBrass) > 0 && <p>🚛 Dispatched: <strong>{r.DispatchBrass} brass</strong> · {r.Transport}</p>}
+                    <p>{r.Date}{r.Location ? ` ·  ${r.Location}` : ''}</p>
+                    {parseFloat(r.OrderBrass)    > 0 && <p> Order: <strong>{r.OrderBrass} brass</strong> @ {formatINR(r.Rate)}/brass</p>}
+                    {parseFloat(r.DispatchBrass) > 0 && <p> Dispatched: <strong>{r.DispatchBrass} brass</strong> · {r.Transport}</p>}
                     {parseFloat(r.FreightCharge) > 0 && <p>Freight: {formatINR(r.FreightCharge)} · {r.Transporter}</p>}
                     {r.Notes && <p className="italic text-gray-400">{r.Notes}</p>}
                   </div>

@@ -5,7 +5,7 @@
 
 /** Canonical material IDs — must match computeMaterialInventory keys in sheets.js */
 export const MATERIAL_IDS = [
-  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'Reti', 'Plastic'
+  'Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'White', 'Reti', 'Plastic'
 ]
 
 /** Full metadata list used by MaterialStock.jsx UI */
@@ -13,7 +13,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Cement',
     label: 'Cement',
-    emoji: '🏗️',
+    emoji: '',
     unit:  'bags',
     color: 'text-gray-700',
     bg:    'bg-gray-50 border-gray-200',
@@ -21,7 +21,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Greet',
     label: 'Greet',
-    emoji: '🪨',
+    emoji: '',
     unit:  'ton',
     color: 'text-stone-600',
     bg:    'bg-stone-50 border-stone-200',
@@ -29,7 +29,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Powder',
     label: 'Powder',
-    emoji: '⚪',
+    emoji: '',
     unit:  'ton',
     color: 'text-slate-600',
     bg:    'bg-slate-50 border-slate-200',
@@ -37,7 +37,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Chemical',
     label: 'Chemical',
-    emoji: '🧪',
+    emoji: '',
     unit:  'L',
     color: 'text-blue-600',
     bg:    'bg-blue-50 border-blue-200',
@@ -45,7 +45,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Yellow',
     label: 'Yellow Color',
-    emoji: '🟡',
+    emoji: '',
     unit:  'kg',
     color: 'text-yellow-600',
     bg:    'bg-yellow-50 border-yellow-200',
@@ -53,7 +53,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Red',
     label: 'Red Color',
-    emoji: '🔴',
+    emoji: '',
     unit:  'kg',
     color: 'text-red-600',
     bg:    'bg-red-50 border-red-200',
@@ -61,15 +61,23 @@ export const MATERIAL_LIST = [
   {
     id:    'Black',
     label: 'Black Color',
-    emoji: '⚫',
+    emoji: '',
     unit:  'kg',
     color: 'text-gray-800',
     bg:    'bg-gray-100 border-gray-300',
   },
   {
+    id:    'White',
+    label: 'White Color',
+    emoji: '',
+    unit:  'kg',
+    color: 'text-slate-500',
+    bg:    'bg-slate-50 border-slate-200',
+  },
+  {
     id:    'Reti',
     label: 'Reti',
-    emoji: '🟫',
+    emoji: '',
     unit:  'ghamela',
     color: 'text-orange-700',
     bg:    'bg-orange-50 border-orange-200',
@@ -77,7 +85,7 @@ export const MATERIAL_LIST = [
   {
     id:    'Plastic',
     label: 'Plastic',
-    emoji: '🧴',
+    emoji: '',
     unit:  'ml',
     color: 'text-teal-600',
     bg:    'bg-teal-50 border-teal-200',
@@ -122,6 +130,7 @@ export function normalizeVendorMaterial(raw) {
   if (s.includes('yellow'))   return 'Yellow'
   if (s.includes('red'))      return 'Red'
   if (s.includes('black'))    return 'Black'
+  if (s.includes('white'))    return 'White'
   if (s.includes('reti'))     return 'Reti'
   if (s.includes('plastic'))  return 'Plastic'
   return null
@@ -146,6 +155,7 @@ export function consumptionFromProductionRow(row) {
     Yellow:   parseFloat(row.YellowKG)   || 0,
     Red:      parseFloat(row.RedKG)      || 0,
     Black:    parseFloat(row.BlackKG)    || 0,
+    White:    parseFloat(row.WhiteKG)    || 0,
     Reti:     parseFloat(row.Reti)       || 0,
     Plastic:  parseFloat(row.Plastic_ml) || 0,
   }
@@ -160,6 +170,7 @@ export const MATERIAL_UNITS = {
   Yellow:   'kg',
   Red:      'kg',
   Black:    'kg',
+  White:    'kg',
   Reti:     'ghamela',
   Plastic:  'ml',
 }

@@ -11,6 +11,8 @@ export function calcProduction(inputs, config) {
   const color  = safe(inputs.colorCement)
   const yellow = safe(inputs.yellowKG)
   const red    = safe(inputs.redKG)
+  const black  = safe(inputs.blackKG)
+  const white  = safe(inputs.whiteKG)
 
   const c = {
     ghamela_g:       safe(config.ghamela_g)       || 17,
@@ -21,6 +23,8 @@ export function calcProduction(inputs, config) {
     ml_c:            safe(config.ml_c)             || 0.5,
     yellowRatio:     safe(config.yellowRatio)      || 0.5,
     redRatio:        safe(config.redRatio)         || 0.5,
+    blackRatio:      safe(config.blackRatio)       || 0.5,
+    whiteRatio:      safe(config.whiteRatio)       || 0.5,
     reti_multiplier: safe(config.reti_multiplier)  || 3,
     plastic_ml:      safe(config.plastic_ml)       || 180,
   }
@@ -31,8 +35,12 @@ export function calcProduction(inputs, config) {
   const chemical     = (c.litre_m * mortar) + (c.ml_c * color)
   const yellowShare  = (color / 2) * c.yellowRatio * 2   // = color * yellowRatio
   const redShare     = (color / 2) * c.redRatio * 2      // = color * redRatio
+  const blackShare   = (color / 2) * c.blackRatio * 2    // = color * blackRatio
+  const whiteShare   = (color / 2) * c.whiteRatio * 2    // = color * whiteRatio
   const yellowFinal  = yellow * yellowShare
   const redFinal     = red * redShare
+  const blackFinal   = black * blackShare
+  const whiteFinal   = white * whiteShare
   const reti         = c.reti_multiplier * color
   const plastic      = c.plastic_ml * color
 
@@ -43,8 +51,12 @@ export function calcProduction(inputs, config) {
     chemical:     round2(chemical),
     yellowShare:  round2(yellowShare),
     redShare:     round2(redShare),
+    blackShare:   round2(blackShare),
+    whiteShare:   round2(whiteShare),
     yellowFinal:  round2(yellowFinal),
     redFinal:     round2(redFinal),
+    blackFinal:   round2(blackFinal),
+    whiteFinal:   round2(whiteFinal),
     reti:         round2(reti),
     plastic:      round2(plastic),
     plasticL:     round2(plastic / 1000),
@@ -66,6 +78,8 @@ export function calcDailyCost(inputs, calc, config) {
 
   const yellow = safe(inputs.yellowKG)
   const red    = safe(inputs.redKG)
+  const black  = safe(inputs.blackKG)
+  const white  = safe(inputs.whiteKG)
   const blocks = safe(inputs.blocks)
   const misc   = safe(inputs.misc) || safe(config.miscDefault) || 1000
 
@@ -73,7 +87,7 @@ export function calcDailyCost(inputs, calc, config) {
   const greetCost    = (calc.greet / 1000) * c.greetRate
   const powderCost   = (calc.powder / 1000) * c.powderRate
   const chemicalCost = calc.chemical * c.chemicalRate
-  const colorCost    = (yellow + red) * c.colorRate
+  const colorCost    = (yellow + red + black + white) * c.colorRate
   const plasticCost  = c.plasticRate
   const retiCost     = calc.reti * c.retiRate
   const labourCost   = blocks * c.labourRate

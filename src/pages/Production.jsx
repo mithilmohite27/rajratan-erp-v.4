@@ -7,7 +7,7 @@ import { blocksToBrass } from '../lib/formulas.js'
 import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS  = ['Red', 'Yellow', 'Black', 'White']
-const EMOJI   = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
+const EMOJI   = { Red: '', Yellow: '', Black: '', White: '' }
 const COLOR_BG = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
 
@@ -113,9 +113,15 @@ function HistoryCard({ entry }) {
         <span className="text-sm font-bold text-orange-500">{formatINR(entry.TotalDailyCost)}</span>
       </div>
       <div className="grid grid-cols-3 gap-1 text-xs text-gray-500">
-        <span>🧱 {Number(entry.Blocks).toLocaleString('en-IN')} blocks</span>
-        <span>🏗 {entry.MortarCement} bags mortar</span>
-        <span>🎨 {entry.ColorCement} bags color</span>
+        <span> {Number(entry.Blocks).toLocaleString('en-IN')} blocks</span>
+        <span> {entry.MortarCement} bags mortar</span>
+        <span> {entry.ColorCement} bags color</span>
+      </div>
+      <div className="mt-2 grid grid-cols-4 gap-1 text-[11px] text-gray-500">
+        <span>Y {formatNum(entry.YellowKG || 0)} kg</span>
+        <span>R {formatNum(entry.RedKG || 0)} kg</span>
+        <span>B {formatNum(entry.BlackKG || 0)} kg</span>
+        <span>W {formatNum(entry.WhiteKG || 0)} kg</span>
       </div>
     </div>
   )
@@ -132,7 +138,7 @@ export default function Production() {
   // Main inputs
   const [inputs, setInputs] = useState({
     date: today(), blocks: '', mortarCement: '', colorCement: '',
-    yellowKG: '', redKG: '', misc: config.miscDefault || 1000,
+    yellowKG: '', redKG: '', blackKG: '', whiteKG: '', misc: config.miscDefault || 1000,
   })
 
   // ── Per-color variant blocks ──────────────
@@ -144,15 +150,19 @@ export default function Production() {
   const [error,   setError]   = useState('')
   const [history, setHistory] = useState([])
   const [lastCalc, setLastCalc] = useState(null)
-  const [shareOverride, setShareOverride] = useState({ yellow: '', red: '' }) // snapshot after save
+  const [shareOverride, setShareOverride] = useState({ yellow: '', red: '', black: '', white: '' }) // snapshot after save
 
   // Live calcs
   const calc = calcProduction(inputs, config)
   const cost = calcDailyCost(inputs, calc, config)
   const effectiveYellowShare = shareOverride.yellow !== '' ? parseFloat(shareOverride.yellow) || 0 : calc.yellowShare
   const effectiveRedShare    = shareOverride.red    !== '' ? parseFloat(shareOverride.red)    || 0 : calc.redShare
+  const effectiveBlackShare  = shareOverride.black  !== '' ? parseFloat(shareOverride.black)  || 0 : calc.blackShare
+  const effectiveWhiteShare  = shareOverride.white  !== '' ? parseFloat(shareOverride.white)  || 0 : calc.whiteShare
   const effectiveYellowFinal = (parseFloat(inputs.yellowKG) || 0) * effectiveYellowShare
   const effectiveRedFinal    = (parseFloat(inputs.redKG)    || 0) * effectiveRedShare
+  const effectiveBlackFinal  = (parseFloat(inputs.blackKG)  || 0) * effectiveBlackShare
+  const effectiveWhiteFinal  = (parseFloat(inputs.whiteKG)  || 0) * effectiveWhiteShare
 
   const set = key => val => setInputs(p => ({ ...p, [key]: val }))
 
@@ -177,6 +187,15 @@ export default function Production() {
       setError('Enter blocks produced for at least one color variant.')
       return
     }
+    const nonNegativeFields = [
+      inputs.mortarCement, inputs.colorCement, inputs.yellowKG, inputs.redKG,
+      inputs.blackKG, inputs.whiteKG, inputs.misc,
+      shareOverride.yellow, shareOverride.red, shareOverride.black, shareOverride.white,
+    ]
+    if (nonNegativeFields.some(value => value !== '' && parseFloat(value) < 0)) {
+      setError('Production and pigment values cannot be negative.')
+      return
+    }
 
     setSaving(true); setError('')
     try {
@@ -194,7 +213,9 @@ export default function Production() {
         mortarCement: inputs.mortarCement, colorCement: inputs.colorCement,
         totalCement: calc.totalCement, greet: calc.greet, powder: calc.powder,
         chemical: calc.chemical, yellowKG: inputs.yellowKG, redKG: inputs.redKG,
+        blackKG: inputs.blackKG, whiteKG: inputs.whiteKG,
         yellowFinal: effectiveYellowFinal, redFinal: effectiveRedFinal,
+        blackFinal: effectiveBlackFinal, whiteFinal: effectiveWhiteFinal,
         reti: calc.reti, plastic: calc.plastic, misc: inputs.misc,
         cementCost: cost.cementCost, greetCost: cost.greetCost,
         powderCost: cost.powderCost, chemicalCost: cost.chemicalCost,
@@ -213,12 +234,23 @@ export default function Production() {
       }
 
       // Snapshot calc & cost BEFORE clearing inputs — results/cost tab reads snapshot
-      setLastCalc({ calc: { ...calc, yellowFinal: effectiveYellowFinal, redFinal: effectiveRedFinal }, cost, blocks: inputs.blocks, date: inputs.date })
+      setLastCalc({
+        calc: {
+          ...calc,
+          yellowFinal: effectiveYellowFinal,
+          redFinal: effectiveRedFinal,
+          blackFinal: effectiveBlackFinal,
+          whiteFinal: effectiveWhiteFinal,
+        },
+        cost,
+        blocks: inputs.blocks,
+        date: inputs.date,
+      })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
       setVariants(emptyVariants())
-      setShareOverride({ yellow: '', red: '' })
-      setInputs({ date: today(), blocks: '', mortarCement: '', colorCement: '', yellowKG: '', redKG: '', misc: config.miscDefault || 1000 })
+      setShareOverride({ yellow: '', red: '', black: '', white: '' })
+      setInputs({ date: today(), blocks: '', mortarCement: '', colorCement: '', yellowKG: '', redKG: '', blackKG: '', whiteKG: '', misc: config.miscDefault || 1000 })
       setTab('results')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -230,12 +262,12 @@ export default function Production() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
-        <h1 className="text-lg font-bold text-gray-800">🏭 Daily Production</h1>
+        <h1 className="text-lg font-bold text-gray-800"> Daily Production</h1>
         <p className="text-xs text-gray-400">Multi-color entry — auto-syncs to Inventory</p>
       </div>
 
       <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+4rem)] z-10">
-        {[['entry','Entry'],['variants','🎨 Colors'],['results','Results'],['cost','Cost'],['history','History']].map(([k,l]) => (
+        {[['entry','Entry'],['variants',' Colors'],['results','Results'],['cost','Cost'],['history','History']].map(([k,l]) => (
           <button key={k} onClick={() => { setTab(k); setError('') }}
             className={`flex-1 py-2.5 text-xs font-semibold leading-tight ${tab===k?'text-orange-500 border-b-2 border-orange-500':'text-gray-400'}`}>
             {l}
@@ -245,50 +277,70 @@ export default function Production() {
 
       <div className="p-4 space-y-3">
         {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">{error}</div>}
-        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold">✅ Saved — Block & material stock update automatically on refresh!</div>}
+        {saved && <div className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl p-3 text-center font-semibold"> Saved — Block & material stock update automatically on refresh!</div>}
 
         {/* ── ENTRY TAB ── */}
         {tab === 'entry' && <>
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-            💡 Fill cement inputs here, then go to <strong>🎨 Colors</strong> tab to enter per-color blocks produced.
+             Fill cement inputs here, then go to <strong> Colors</strong> tab to enter per-color blocks produced.
           </div>
-          <Field label="📅 Date" value={inputs.date} onChange={set('date')} type="date" />
+          <Field label=" Date" value={inputs.date} onChange={set('date')} type="date" />
 
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-1">Cement</div>
-          <Field label="🏗 Mortar Cement Bags" value={inputs.mortarCement} onChange={set('mortarCement')} unit="bags" />
-          <Field label="🎨 Color Cement Bags"  value={inputs.colorCement}  onChange={set('colorCement')}  unit="bags" />
-          <Field label="📊 Total Cement" value={calc.totalCement || ''} readOnly unit="bags" highlight />
+          <Field label=" Mortar Cement Bags" value={inputs.mortarCement} onChange={set('mortarCement')} unit="bags" />
+          <Field label=" Color Cement Bags"  value={inputs.colorCement}  onChange={set('colorCement')}  unit="bags" />
+          <Field label=" Total Cement" value={calc.totalCement || ''} readOnly unit="bags" highlight />
 
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-1">Color Pigment</div>
           <div className="grid grid-cols-2 gap-2">
-  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-    <label className="text-xs text-yellow-600 font-semibold block mb-1">🟡 Yellow Share (bags)</label>
-    <input type="number" inputMode="decimal"
-      value={shareOverride.yellow}
-      placeholder={String(calc.yellowShare)}
-      onChange={e => setShareOverride(p => ({ ...p, yellow: e.target.value }))}
-      className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
-    <p className="text-[10px] text-yellow-500 mt-0.5">Auto: {calc.yellowShare} bags</p>
-  </div>
-  <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-    <label className="text-xs text-red-600 font-semibold block mb-1">🔴 Red Share (bags)</label>
-    <input type="number" inputMode="decimal"
-      value={shareOverride.red}
-      placeholder={String(calc.redShare)}
-      onChange={e => setShareOverride(p => ({ ...p, red: e.target.value }))}
-      className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
-    <p className="text-[10px] text-red-500 mt-0.5">Auto: {calc.redShare} bags</p>
-  </div>
-</div>
-          <Field label="🟡 Yellow Color KG" value={inputs.yellowKG} onChange={set('yellowKG')} unit="kg" />
-          <Field label="🔴 Red Color KG"    value={inputs.redKG}    onChange={set('redKG')}    unit="kg" />
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+              <label className="text-xs text-yellow-600 font-semibold block mb-1"> Yellow Share (bags)</label>
+              <input type="number" inputMode="decimal"
+                value={shareOverride.yellow}
+                placeholder={String(calc.yellowShare)}
+                onChange={e => setShareOverride(p => ({ ...p, yellow: e.target.value }))}
+                className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+              <p className="text-[10px] text-yellow-500 mt-0.5">Auto: {calc.yellowShare} bags</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <label className="text-xs text-red-600 font-semibold block mb-1"> Red Share (bags)</label>
+              <input type="number" inputMode="decimal"
+                value={shareOverride.red}
+                placeholder={String(calc.redShare)}
+                onChange={e => setShareOverride(p => ({ ...p, red: e.target.value }))}
+                className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+              <p className="text-[10px] text-red-500 mt-0.5">Auto: {calc.redShare} bags</p>
+            </div>
+            <div className="bg-gray-100 border border-gray-300 rounded-xl p-3">
+              <label className="text-xs text-gray-700 font-semibold block mb-1"> Black Share (bags)</label>
+              <input type="number" inputMode="decimal"
+                value={shareOverride.black}
+                placeholder={String(calc.blackShare)}
+                onChange={e => setShareOverride(p => ({ ...p, black: e.target.value }))}
+                className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+              <p className="text-[10px] text-gray-500 mt-0.5">Auto: {calc.blackShare} bags</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+              <label className="text-xs text-blue-600 font-semibold block mb-1"> White Share (bags)</label>
+              <input type="number" inputMode="decimal"
+                value={shareOverride.white}
+                placeholder={String(calc.whiteShare)}
+                onChange={e => setShareOverride(p => ({ ...p, white: e.target.value }))}
+                className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
+              <p className="text-[10px] text-blue-500 mt-0.5">Auto: {calc.whiteShare} bags</p>
+            </div>
+          </div>
+          <Field label=" Yellow Color KG" value={inputs.yellowKG} onChange={set('yellowKG')} unit="kg" />
+          <Field label=" Red Color KG"    value={inputs.redKG}    onChange={set('redKG')}    unit="kg" />
+          <Field label=" Black Color KG"  value={inputs.blackKG}  onChange={set('blackKG')}  unit="kg" />
+          <Field label=" White Color KG"  value={inputs.whiteKG}  onChange={set('whiteKG')}  unit="kg" />
 
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-1">Expenses</div>
-          <Field label="💸 Miscellaneous (₹)" value={inputs.misc} onChange={set('misc')} unit="₹" />
+          <Field label=" Miscellaneous (₹)" value={inputs.misc} onChange={set('misc')} unit="₹" />
 
           {/* Summary of variant entry */}
           <div className={`rounded-xl p-3 border ${filledCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
-            <p className="text-xs text-gray-500 mb-1">🎨 Color Variants</p>
+            <p className="text-xs text-gray-500 mb-1"> Color Variants</p>
             {filledCount === 0 ? (
               <button onClick={() => setTab('variants')} className="text-orange-500 text-sm font-bold">
                 → Go to Colors tab to enter per-color blocks
@@ -311,14 +363,14 @@ export default function Production() {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg mt-2">
-            {saving ? '⏳ Saving...' : '💾 Save Production (updates Block + Material stock)'}
+            {saving ? ' Saving...' : ' Save Production (updates Block + Material stock)'}
           </button>
         </>}
 
         {/* ── VARIANTS TAB (per-color blocks) ── */}
         {tab === 'variants' && <>
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-            <p className="text-xs font-bold text-orange-600 mb-0.5">🎨 Multi-Color Production Entry</p>
+            <p className="text-xs font-bold text-orange-600 mb-0.5"> Multi-Color Production Entry</p>
             <p className="text-xs text-gray-500">Enter blocks produced per color. These automatically update your live inventory stock when saved.</p>
           </div>
 
@@ -352,7 +404,7 @@ export default function Production() {
           <div className="flex gap-2">
             <button onClick={() => setVariants(emptyVariants())}
               className="flex-1 border border-gray-200 text-gray-500 text-sm font-semibold py-2.5 rounded-xl">
-              🗑 Clear
+               Clear
             </button>
             <button onClick={() => setTab('entry')}
               className="flex-1 bg-orange-500 text-white text-sm font-bold py-2.5 rounded-xl">
@@ -368,12 +420,12 @@ export default function Production() {
           return <>
             {!hasData && !lastCalc && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
-                💡 Enter Mortar Cement and Color Cement on the Entry tab first, then results appear here automatically.
+                 Enter Mortar Cement and Color Cement on the Entry tab first, then results appear here automatically.
               </div>
             )}
             {lastCalc && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-2 text-xs text-green-600 text-center font-semibold">
-                ✅ Results from last save — {lastCalc.date} · {Number(lastCalc.blocks).toLocaleString('en-IN')} blocks
+                 Results from last save — {lastCalc.date} · {Number(lastCalc.blocks).toLocaleString('en-IN')} blocks
               </div>
             )}
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Material Calculations</div>
@@ -395,12 +447,20 @@ export default function Production() {
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-1">Color Output</div>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                <p className="text-xs text-yellow-600">🟡 Yellow Final</p>
+                <p className="text-xs text-yellow-600"> Yellow Final</p>
                 <p className="text-base font-bold text-gray-800">{formatNum(c.yellowFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                <p className="text-xs text-red-600">🔴 Red Final</p>
+                <p className="text-xs text-red-600"> Red Final</p>
                 <p className="text-base font-bold text-gray-800">{formatNum(c.redFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
+              </div>
+              <div className="bg-gray-100 border border-gray-300 rounded-xl p-3">
+                <p className="text-xs text-gray-700"> Black Final</p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.blackFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <p className="text-xs text-blue-600"> White Final</p>
+                <p className="text-base font-bold text-gray-800">{formatNum(c.whiteFinal)} <span className="text-xs font-normal text-gray-400">{unitLabel('kg')}</span></p>
               </div>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
@@ -417,27 +477,27 @@ export default function Production() {
           return <>
             {lastCalc && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-2 text-xs text-green-600 text-center font-semibold">
-                ✅ Cost from last save — {lastCalc.date}
+                 Cost from last save — {lastCalc.date}
               </div>
             )}
             {!lastCalc && !parseFloat(inputs.mortarCement) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
-                💡 Enter cement data on Entry tab to see cost breakdown.
+                 Enter cement data on Entry tab to see cost breakdown.
               </div>
             )}
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Daily Cost Breakdown</div>
             <div className="space-y-1.5">
-              <CostRow label="🏗 Cement"   value={co.cementCost} />
-              <CostRow label="🪨 Greet"    value={co.greetCost} />
-              <CostRow label="⚪ Powder"   value={co.powderCost} />
-              <CostRow label="🧪 Chemical" value={co.chemicalCost} />
-              <CostRow label="🎨 Color"    value={co.colorCost} />
-              <CostRow label="🧴 Plastic"  value={co.plasticCost} />
-              <CostRow label="🏖 Reti"     value={co.retiCost} />
-              <CostRow label="👷 Labour"   value={co.labourCost} />
-              <CostRow label="💸 Misc"     value={co.miscCost} />
+              <CostRow label=" Cement"   value={co.cementCost} />
+              <CostRow label=" Greet"    value={co.greetCost} />
+              <CostRow label=" Powder"   value={co.powderCost} />
+              <CostRow label=" Chemical" value={co.chemicalCost} />
+              <CostRow label=" Color"    value={co.colorCost} />
+              <CostRow label=" Plastic"  value={co.plasticCost} />
+              <CostRow label=" Reti"     value={co.retiCost} />
+              <CostRow label=" Labour"   value={co.labourCost} />
+              <CostRow label=" Misc"     value={co.miscCost} />
               <div className="h-px bg-gray-200 my-1" />
-              <CostRow label="💰 TOTAL DAILY COST" value={co.totalDailyCost} highlight />
+              <CostRow label=" TOTAL DAILY COST" value={co.totalDailyCost} highlight />
             </div>
             <p className="text-xs text-center text-gray-400">
               {Number(bl).toLocaleString('en-IN')} blocks · {formatINR(co.costPerBlock)}/block
@@ -449,7 +509,7 @@ export default function Production() {
         {tab === 'history' && <>
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Recent Production ({history.length})</div>
           {history.length === 0
-            ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2">📋</div><p>No entries yet.</p></div>
+            ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2"></div><p>No entries yet.</p></div>
             : history.map((e, i) => <HistoryCard key={i} entry={e} />)
           }
         </>}

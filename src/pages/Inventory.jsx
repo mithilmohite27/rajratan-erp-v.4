@@ -6,7 +6,7 @@ import MaterialStock from './MaterialStock.jsx'
 import { confirmDuplicateSave, confirmSheetWrite } from '../lib/safety.js'
 
 const COLORS    = ['Red', 'Yellow', 'Black', 'White']
-const EMOJI     = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪' }
+const EMOJI     = { Red: '', Yellow: '', Black: '', White: '' }
 const COLOR_BG  = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200' }
 const COLOR_TEXT = { Red: 'text-red-600', Yellow: 'text-yellow-600', Black: 'text-gray-700', White: 'text-blue-600' }
 
@@ -46,7 +46,7 @@ function SourceRow({ label, count, ok }) {
       <span className="text-sm text-gray-600">{label}</span>
       <div className="flex items-center gap-2">
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ok ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
-          {ok ? `✓ ${count} rows` : '⚠ Empty'}
+          {ok ? ` ${count} rows` : ' Empty'}
         </span>
       </div>
     </div>
@@ -228,7 +228,7 @@ export default function Inventory() {
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-lg font-bold text-gray-800">📦 Stock</h1>
+            <h1 className="text-lg font-bold text-gray-800"> Stock</h1>
             <p className="text-xs text-gray-400">
               {stockMode === 'blocks'
                 ? 'Block stock — Opening + Production − Sales − Wastage'
@@ -239,12 +239,12 @@ export default function Inventory() {
           {stockMode === 'blocks' && (
             <button onClick={refresh}
               className="bg-orange-50 border border-orange-200 text-orange-500 text-xs font-bold px-3 py-1.5 rounded-xl">
-              🔄 Refresh
+               Refresh
             </button>
           )}
         </div>
         <div className="flex gap-2 mt-2">
-          {[['blocks', '🧱 Blocks'], ['materials', '🧪 Materials']].map(([k, l]) => (
+          {[['blocks', ' Blocks'], ['materials', ' Materials']].map(([k, l]) => (
             <button key={k} onClick={() => setStockMode(k)}
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all
                 ${stockMode === k ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
@@ -261,7 +261,7 @@ export default function Inventory() {
       ) : <>
       {/* Block stock tabs */}
       <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+5.5rem)] z-10">
-        {[['dashboard','Dashboard'],['colors','By Color'],['formula','Formula'],['debug','🔍 Debug']].map(([k,l]) => (
+        {[['dashboard','Dashboard'],['colors','By Color'],['formula','Formula'],['debug',' Debug']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 py-2.5 text-xs font-semibold ${tab===k?'text-orange-500 border-b-2 border-orange-500':'text-gray-400'}`}>
             {l}
@@ -275,7 +275,7 @@ export default function Inventory() {
 
         {loading ? (
           <div className="text-center py-16 text-gray-400">
-            <div className="text-4xl mb-3">⏳</div>
+            <div className="text-4xl mb-3"></div>
             <p>Computing live inventory...</p>
             <p className="text-xs mt-1 text-gray-300">Reading Production, CRM, QC & Opening Stock</p>
           </div>
@@ -284,18 +284,18 @@ export default function Inventory() {
           {/* ── No data banner ── */}
           {hasNoData && (
             <div className="bg-yellow-50 border border-yellow-300 rounded-2xl p-4">
-              <p className="font-bold text-yellow-700 mb-1">⚠️ No inventory data found</p>
+              <p className="font-bold text-yellow-700 mb-1"> No inventory data found</p>
               <p className="text-sm text-yellow-600 mb-3">
                 Your opening stock is in Google Sheets but the app can't read it yet. This usually means the <strong>Opening_Stock</strong> tab or <strong>Production_Variants</strong> tab doesn't exist in your Sheet.
               </p>
               <div className="space-y-2">
                 <button onClick={() => setShowQuickFix(v => !v)}
                   className="w-full bg-yellow-500 text-white font-bold py-3 rounded-xl text-sm">
-                  {showQuickFix ? '✕ Close' : '⚡ Quick Fix — Enter Opening Stock Here'}
+                  {showQuickFix ? ' Close' : ' Quick Fix — Enter Opening Stock Here'}
                 </button>
                 <button onClick={() => setTab('debug')}
                   className="w-full border border-yellow-300 text-yellow-700 font-bold py-2 rounded-xl text-sm">
-                  🔍 Diagnose — See What Data Is Being Read
+                   Diagnose — See What Data Is Being Read
                 </button>
               </div>
             </div>
@@ -317,7 +317,7 @@ export default function Inventory() {
               ))}
               <button onClick={handleQuickFix} disabled={quickSaving}
                 className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-3 rounded-xl">
-                {quickSaving ? '⏳ Saving...' : '💾 Save Opening Stock'}
+                {quickSaving ? ' Saving...' : ' Save Opening Stock'}
               </button>
             </div>
           )}
@@ -357,7 +357,7 @@ export default function Inventory() {
 
             <div className="bg-white border border-gray-100 rounded-xl p-3">
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">How to record sales</p>
-              <p className="text-sm text-gray-600">Go to <strong>🤝 CRM</strong> → select client → tap <strong>"Record Dispatch"</strong>. Stock deducts automatically.</p>
+              <p className="text-sm text-gray-600">Go to <strong> CRM</strong> → select client → tap <strong>"Record Dispatch"</strong>. Stock deducts automatically.</p>
             </div>
           </>}
 
@@ -369,7 +369,7 @@ export default function Inventory() {
           {/* ── FORMULA ── */}
           {tab === 'formula' && <>
             <div className="bg-white border border-gray-100 rounded-2xl p-4">
-              <p className="font-bold text-gray-700 mb-2">📐 Stock Formula</p>
+              <p className="font-bold text-gray-700 mb-2"> Stock Formula</p>
               <div className="bg-gray-50 rounded-xl p-3 font-mono text-xs text-gray-700 mb-3 leading-relaxed">
                 Stock = Opening_Stock<br/>
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ Production_Variants<br/>
@@ -388,12 +388,12 @@ export default function Inventory() {
               </>}
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-4">
-              <p className="font-bold text-gray-700 mb-2">🔗 Data Sources</p>
+              <p className="font-bold text-gray-700 mb-2"> Data Sources</p>
               <div className="space-y-2 text-xs text-gray-500">
-                <p>🌱 <strong>Opening_Stock</strong> tab → set in Setup or Quick Fix above</p>
-                <p>🏭 <strong>Production_Variants</strong> tab → written when you save production with color entries</p>
-                <p>🤝 <strong>CRM_Log</strong> (Status=Dispatched) → written when you confirm a dispatch</p>
-                <p>🔴 <strong>QC_Log</strong> → written when you log broken blocks</p>
+                <p> <strong>Opening_Stock</strong> tab → set in Setup or Quick Fix above</p>
+                <p> <strong>Production_Variants</strong> tab → written when you save production with color entries</p>
+                <p> <strong>CRM_Log</strong> (Status=Dispatched) → written when you confirm a dispatch</p>
+                <p> <strong>QC_Log</strong> → written when you log broken blocks</p>
               </div>
             </div>
           </>}
@@ -401,25 +401,25 @@ export default function Inventory() {
           {/* ── DEBUG TAB ── */}
           {tab === 'debug' && <>
             <div className="bg-gray-800 text-white rounded-2xl p-4">
-              <p className="text-sm font-bold mb-1">🔍 Data Source Diagnostic</p>
+              <p className="text-sm font-bold mb-1"> Data Source Diagnostic</p>
               <p className="text-xs text-gray-400">Shows exactly what the app is reading from your Google Sheet.</p>
             </div>
 
             {debugLoading ? (
-              <div className="text-center py-8 text-gray-400">⏳ Reading all tabs...</div>
+              <div className="text-center py-8 text-gray-400"> Reading all tabs...</div>
             ) : !debugData ? (
               <button onClick={loadDebug} className="w-full bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">
-                🔍 Run Diagnostic
+                 Run Diagnostic
               </button>
             ) : <>
               {/* Source status */}
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tab Status</p>
-                <SourceRow label="🌱 Opening_Stock (raw rows)"    count={debugData.summary.openingRawCount}  ok={debugData.summary.openingRawCount > 0} />
-                <SourceRow label="🌱 Opening_Stock (parsed colors)" count={debugData.summary.openingMapColors?.length || 0} ok={(debugData.summary.openingMapColors?.length || 0) > 0} />
-                <SourceRow label="🏭 Production_Variants"         count={debugData.summary.variantsCount}    ok={debugData.summary.variantsCount > 0} />
-                <SourceRow label="🤝 CRM Dispatched rows"         count={debugData.summary.dispatchCount}    ok={true} />
-                <SourceRow label="🔴 QC_Log rows"                 count={debugData.summary.qcCount}          ok={true} />
+                <SourceRow label=" Opening_Stock (raw rows)"    count={debugData.summary.openingRawCount}  ok={debugData.summary.openingRawCount > 0} />
+                <SourceRow label=" Opening_Stock (parsed colors)" count={debugData.summary.openingMapColors?.length || 0} ok={(debugData.summary.openingMapColors?.length || 0) > 0} />
+                <SourceRow label=" Production_Variants"         count={debugData.summary.variantsCount}    ok={debugData.summary.variantsCount > 0} />
+                <SourceRow label=" CRM Dispatched rows"         count={debugData.summary.dispatchCount}    ok={true} />
+                <SourceRow label=" QC_Log rows"                 count={debugData.summary.qcCount}          ok={true} />
               </div>
 
               {/* Opening stock — show BOTH raw rows and parsed map */}
@@ -431,17 +431,17 @@ export default function Inventory() {
                 {/* Parsed map — what the app actually uses */}
                 {Object.keys(debugData.openingMap || {}).length > 0 ? (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-3">
-                    <p className="text-xs font-bold text-green-600 mb-2">✅ Parsed Successfully</p>
+                    <p className="text-xs font-bold text-green-600 mb-2"> Parsed Successfully</p>
                     {Object.entries(debugData.openingMap).map(([color, blocks]) => (
                       <div key={color} className="flex justify-between text-sm py-1 border-b border-green-100">
-                        <span>{EMOJI[color] || '🎨'} {color}</span>
+                        <span>{EMOJI[color] || ''} {color}</span>
                         <span className="font-bold text-green-700">{Number(blocks).toLocaleString('en-IN')} blocks</span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3">
-                    <p className="text-sm text-red-600 font-semibold">⚠️ Could not parse opening stock!</p>
+                    <p className="text-sm text-red-600 font-semibold"> Could not parse opening stock!</p>
                     <p className="text-xs text-gray-500 mt-1">Your Sheet has {debugData.summary.openingRawCount} rows but color names weren't found. Use Quick Fix below.</p>
                   </div>
                 )}
@@ -469,7 +469,7 @@ export default function Inventory() {
                 </p>
                 {debugData.variantRows.length === 0 ? (
                   <div>
-                    <p className="text-sm text-yellow-600">⚠️ No production variants yet.</p>
+                    <p className="text-sm text-yellow-600"> No production variants yet.</p>
                     <p className="text-xs text-gray-400 mt-1">Save a production entry with color blocks to populate this. Until then, opening stock alone drives inventory.</p>
                   </div>
                 ) : (
@@ -477,7 +477,7 @@ export default function Inventory() {
                     {debugData.variantRows.slice(0,10).map((r,i) => (
                       <div key={i} className="flex gap-3 text-xs py-1 border-b border-gray-50">
                         <span className="text-gray-400">{r.Date}</span>
-                        <span>{EMOJI[r.Color]||'🎨'} {r.Color}</span>
+                        <span>{EMOJI[r.Color]||''} {r.Color}</span>
                         <span className="font-bold ml-auto">{Number(r.Blocks).toLocaleString('en-IN')}</span>
                       </div>
                     ))}
@@ -490,7 +490,7 @@ export default function Inventory() {
 
               <button onClick={loadDebug}
                 className="w-full border border-gray-200 text-gray-500 font-medium py-2.5 rounded-xl text-sm">
-                🔄 Re-run Diagnostic
+                 Re-run Diagnostic
               </button>
             </>}
           </>}

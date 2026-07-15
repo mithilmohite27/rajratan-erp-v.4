@@ -11,7 +11,7 @@ import { confirmDuplicateSave, confirmSheetWrite } from '../lib/safety.js'
 
 // ── Only materials that make sense for external sale ──
 const EXTERNAL_MATERIALS = MATERIAL_LIST.filter(m =>
-  ['Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'Reti', 'Plastic'].includes(m.id)
+  ['Cement', 'Greet', 'Powder', 'Chemical', 'Yellow', 'Red', 'Black', 'White', 'Reti', 'Plastic'].includes(m.id)
 )
 
 const REASONS = ['External Sale', 'Block Fitting', 'Damaged / Waste', 'Other']
@@ -82,7 +82,7 @@ function SourceRow({ label, count, ok }) {
     <div className="flex justify-between items-center py-2 border-b border-gray-50">
       <span className="text-sm text-gray-600">{label}</span>
       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ok ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
-        {ok ? `✓ ${count} rows` : '⚠ Empty'}
+        {ok ? ` ${count} rows` : ' Empty'}
       </span>
     </div>
   )
@@ -146,7 +146,7 @@ function MaterialDashboardSummary({ inventory }) {
               {/* Show external used if any */}
               {d.externalUsed > 0 && (
                 <div className="mt-1.5 bg-white/10 rounded-lg px-2 py-1 text-center">
-                  <span className="text-[10px] opacity-80">🏪 External out: </span>
+                  <span className="text-[10px] opacity-80"> External out: </span>
                   <span className="text-[10px] font-bold text-red-200">{formatMaterialQty(d.externalUsed, meta.unit)} {unitLabel(meta.unit)}</span>
                 </div>
               )}
@@ -302,7 +302,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
         }
         await saveExternalMaterialUsageViaBackend(entry, accessToken, true)
       }
-      setSuccess(`✅ ${form.material} external usage saved — stock updated!`)
+      setSuccess(` ${form.material} external usage saved — stock updated!`)
       setTimeout(() => setSuccess(''), 3000)
       setForm(p => ({ ...p, quantity: '', notes: '' }))
       onSaved()    // trigger parent refresh
@@ -315,7 +315,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
     <div className="space-y-3">
       {/* Sub-tabs */}
       <div className="flex bg-white border border-gray-100 rounded-xl overflow-hidden">
-        {[['add','+ Log Usage'],['history','📋 History']].map(([k,l]) => (
+        {[['add','+ Log Usage'],['history',' History']].map(([k,l]) => (
           <button key={k} onClick={() => setSubTab(k)}
             className={`flex-1 py-2 text-xs font-semibold ${subTab===k ? 'text-orange-600 bg-orange-50' : 'text-gray-400'}`}>
             {l}
@@ -329,12 +329,12 @@ function ExternalUsageTab({ accessToken, onSaved }) {
       {subTab === 'add' && (
         <>
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700">
-            🏪 Use this to record cement (or any material) <strong>sold or used outside the factory</strong>. This will be automatically deducted from your material stock balance.
+             Use this to record cement (or any material) <strong>sold or used outside the factory</strong>. This will be automatically deducted from your material stock balance.
           </div>
 
           {/* Date */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-400 font-semibold block mb-1">📅 Date</label>
+            <label className="text-xs text-gray-400 font-semibold block mb-1"> Date</label>
             <input type="date" value={form.date}
               onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
@@ -342,7 +342,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
 
           {/* Material selector */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-400 font-semibold block mb-2">🧱 Material</label>
+            <label className="text-xs text-gray-400 font-semibold block mb-2"> Material</label>
             <div className="flex flex-wrap gap-2">
               {EXTERNAL_MATERIALS.map(m => (
                 <button key={m.id} onClick={() => setForm(p => ({ ...p, material: m.id }))}
@@ -357,7 +357,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
           {/* Quantity */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <label className="text-xs text-gray-400 font-semibold block mb-1">
-              📦 Quantity <span className="text-orange-500 font-bold">({MATERIAL_UNITS[form.material] || currentMeta.unit})</span>
+               Quantity <span className="text-orange-500 font-bold">({MATERIAL_UNITS[form.material] || currentMeta.unit})</span>
             </label>
             <div className="flex items-center gap-2">
               <input type="number" inputMode="decimal"
@@ -372,7 +372,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
 
           {/* Reason */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-400 font-semibold block mb-2">📌 Reason</label>
+            <label className="text-xs text-gray-400 font-semibold block mb-2"> Reason</label>
             <div className="flex flex-wrap gap-2">
               {REASONS.map(r => (
                 <button key={r} onClick={() => setForm(p => ({ ...p, reason: r }))}
@@ -386,7 +386,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
 
           {/* Notes */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-400 font-semibold block mb-1">📝 Notes (optional)</label>
+            <label className="text-xs text-gray-400 font-semibold block mb-1"> Notes (optional)</label>
             <input type="text" value={form.notes}
               placeholder="e.g. Sold to Ramesh bhai, 25 bags"
               onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
@@ -395,18 +395,18 @@ function ExternalUsageTab({ accessToken, onSaved }) {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-orange-200">
-            {saving ? '⏳ Saving...' : '💾 Save External Usage — Deduct from Stock'}
+            {saving ? ' Saving...' : ' Save External Usage — Deduct from Stock'}
           </button>
         </>
       )}
 
       {subTab === 'history' && (
         loadingHistory
-          ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+          ? <div className="text-center py-8 text-gray-400"> Loading...</div>
           : history.length === 0
             ? (
               <div className="text-center py-12 text-gray-400">
-                <div className="text-4xl mb-2">📋</div>
+                <div className="text-4xl mb-2"></div>
                 <p>No external usage recorded yet.</p>
                 <button onClick={() => setSubTab('add')}
                   className="mt-3 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold">
@@ -420,7 +420,7 @@ function ExternalUsageTab({ accessToken, onSaved }) {
                   <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-gray-800">
-                        {meta.emoji || '📦'} {r.Material}
+                        {meta.emoji || ''} {r.Material}
                       </span>
                       <span className="text-sm font-bold text-orange-600">
                         −{r.Quantity} {r.Unit}
@@ -534,7 +534,7 @@ export default function MaterialStock() {
         </p>
         <button onClick={refresh}
           className="bg-teal-50 border border-teal-200 text-teal-600 text-xs font-bold px-3 py-1.5 rounded-xl">
-          🔄 Refresh
+           Refresh
         </button>
       </div>
 
@@ -543,9 +543,9 @@ export default function MaterialStock() {
         {[
           ['dashboard', 'Dashboard'],
           ['materials', 'By Material'],
-          ['external',  '🏪 External'],
+          ['external',  ' External'],
           ['formula',   'Formula'],
-          ['debug',     '🔍 Debug'],
+          ['debug',     ' Debug'],
         ].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex-1 py-2 text-xs font-semibold leading-tight
@@ -568,7 +568,7 @@ export default function MaterialStock() {
       {tab !== 'external' && (
         loading ? (
           <div className="text-center py-16 text-gray-400">
-            <div className="text-4xl mb-3">⏳</div>
+            <div className="text-4xl mb-3"></div>
             <p>Computing material stock...</p>
             <p className="text-xs mt-1 text-gray-300">Reading Production, Vendor Ledger & Opening Stock</p>
           </div>
@@ -576,13 +576,13 @@ export default function MaterialStock() {
           <>
             {hasNoData && (
               <div className="bg-yellow-50 border border-yellow-300 rounded-2xl p-4">
-                <p className="font-bold text-yellow-700 mb-1">⚠️ No material stock data yet</p>
+                <p className="font-bold text-yellow-700 mb-1"> No material stock data yet</p>
                 <p className="text-sm text-yellow-600 mb-3">
                   Set opening balances, or add vendor invoices with <strong>quantity</strong>.
                 </p>
                 <button onClick={() => setShowQuickFix(v => !v)}
                   className="w-full bg-yellow-500 text-white font-bold py-3 rounded-xl text-sm">
-                  {showQuickFix ? '✕ Close' : '⚡ Quick Fix — Enter Opening Material Stock'}
+                  {showQuickFix ? ' Close' : ' Quick Fix — Enter Opening Material Stock'}
                 </button>
               </div>
             )}
@@ -607,7 +607,7 @@ export default function MaterialStock() {
                 ))}
                 <button onClick={handleQuickFix} disabled={quickSaving}
                   className="w-full bg-teal-600 disabled:bg-teal-300 text-white font-bold py-3 rounded-xl">
-                  {quickSaving ? '⏳ Saving...' : '💾 Save Opening Material Stock'}
+                  {quickSaving ? ' Saving...' : ' Save Opening Material Stock'}
                 </button>
               </div>
             )}
@@ -619,7 +619,7 @@ export default function MaterialStock() {
                 <MaterialTrackerTable inventory={inventory} />
                 <button onClick={() => setShowQuickFix(v => !v)}
                   className="w-full border border-teal-200 text-teal-600 font-bold py-2.5 rounded-xl text-sm">
-                  {showQuickFix ? '✕ Close opening stock form' : '⚡ Adjust opening balances'}
+                  {showQuickFix ? ' Close opening stock form' : ' Adjust opening balances'}
                 </button>
               </>
             )}
@@ -636,7 +636,7 @@ export default function MaterialStock() {
             {tab === 'formula' && (
               <>
                 <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                  <p className="font-bold text-gray-700 mb-2">📐 Material Stock Formula</p>
+                  <p className="font-bold text-gray-700 mb-2"> Material Stock Formula</p>
                   <div className="bg-gray-50 rounded-xl p-3 font-mono text-xs text-gray-700 mb-3 leading-relaxed">
                     Balance = Opening_Material_Stock<br />
                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ Vendor_Ledger (Invoice + Qty)<br />
@@ -648,12 +648,12 @@ export default function MaterialStock() {
                   </p>
                 </div>
                 <div className="bg-white border border-gray-100 rounded-xl p-4">
-                  <p className="font-bold text-gray-700 mb-2">🔗 Data Sources</p>
+                  <p className="font-bold text-gray-700 mb-2"> Data Sources</p>
                   <div className="space-y-2 text-xs text-gray-500">
-                    <p>🌱 <strong>Opening_Material_Stock</strong> — baseline (Setup or Quick Fix)</p>
-                    <p>🧾 <strong>Vendor_Ledger</strong> — invoices with Quantity + Unit</p>
-                    <p>🏭 <strong>Production_Log</strong> — auto consumption on each save</p>
-                    <p>🏪 <strong>External_Material_Usage</strong> — sales/personal use outside factory</p>
+                    <p> <strong>Opening_Material_Stock</strong> — baseline (Setup or Quick Fix)</p>
+                    <p> <strong>Vendor_Ledger</strong> — invoices with Quantity + Unit</p>
+                    <p> <strong>Production_Log</strong> — auto consumption on each save</p>
+                    <p> <strong>External_Material_Usage</strong> — sales/personal use outside factory</p>
                   </div>
                 </div>
               </>
@@ -663,24 +663,24 @@ export default function MaterialStock() {
             {tab === 'debug' && (
               <>
                 <div className="bg-gray-800 text-white rounded-2xl p-4">
-                  <p className="text-sm font-bold mb-1">🔍 Material Stock Diagnostic</p>
+                  <p className="text-sm font-bold mb-1"> Material Stock Diagnostic</p>
                   <p className="text-xs text-gray-400">Raw counts from Google Sheet tabs.</p>
                 </div>
                 {debugLoading ? (
-                  <div className="text-center py-8 text-gray-400">⏳ Reading tabs...</div>
+                  <div className="text-center py-8 text-gray-400"> Reading tabs...</div>
                 ) : !debugData ? (
                   <button onClick={loadDebug} className="w-full bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">
-                    🔍 Run Diagnostic
+                     Run Diagnostic
                   </button>
                 ) : (
                   <>
                     <div className="bg-white border border-gray-100 rounded-2xl p-4">
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tab Status</p>
-                      <SourceRow label="🌱 Opening_Material_Stock"    count={debugData.summary.openingRawCount}  ok={debugData.summary.openingRawCount > 0} />
-                      <SourceRow label="🧾 Purchases (qty invoices)"  count={debugData.summary.purchaseCount}    ok={debugData.summary.purchaseCount > 0} />
-                      <SourceRow label="🏭 Production_Log rows"       count={debugData.summary.productionCount}  ok={debugData.summary.productionCount > 0} />
-                      <SourceRow label="🪨 Greet readable"            count={debugData.summary.greetKgReadable ? 1 : 0}  ok={debugData.summary.greetKgReadable} />
-                      <SourceRow label="⚪ Powder readable"           count={debugData.summary.powderKgReadable ? 1 : 0} ok={debugData.summary.powderKgReadable} />
+                      <SourceRow label=" Opening_Material_Stock"    count={debugData.summary.openingRawCount}  ok={debugData.summary.openingRawCount > 0} />
+                      <SourceRow label=" Purchases (qty invoices)"  count={debugData.summary.purchaseCount}    ok={debugData.summary.purchaseCount > 0} />
+                      <SourceRow label=" Production_Log rows"       count={debugData.summary.productionCount}  ok={debugData.summary.productionCount > 0} />
+                      <SourceRow label=" Greet readable"            count={debugData.summary.greetKgReadable ? 1 : 0}  ok={debugData.summary.greetKgReadable} />
+                      <SourceRow label=" Powder readable"           count={debugData.summary.powderKgReadable ? 1 : 0} ok={debugData.summary.powderKgReadable} />
                     </div>
                     <div className="bg-white border border-gray-100 rounded-2xl p-4">
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">Production consumption (totals)</p>
@@ -695,7 +695,7 @@ export default function MaterialStock() {
                     </div>
                     <button onClick={loadDebug}
                       className="w-full border border-gray-200 text-gray-500 font-medium py-2.5 rounded-xl text-sm">
-                      🔄 Re-run Diagnostic
+                       Re-run Diagnostic
                     </button>
                   </>
                 )}

@@ -319,7 +319,7 @@ export async function appendPayrollEntry(entry) {
 }
 
 export async function readProductionRows() {
-  return rowsToObjects(await readSheetRange('Production_Log!A:Z'))
+  return rowsToObjects(await readSheetRange('Production_Log!A:AB'))
 }
 
 export async function readProductionVariantRows() {
@@ -352,6 +352,10 @@ export async function appendProductionEntry(entry) {
     entry.retiCost,
     entry.labourCost,
     entry.totalDailyCost,
+    entry.blackKG || 0,
+    entry.whiteKG || 0,
+    entry.blackFinal || 0,
+    entry.whiteFinal || 0,
   ])
 }
 
@@ -434,7 +438,7 @@ export async function seedStaticDataIfEmpty() {
 
   const headerSeeds = [
     ['Opening_Stock', ['Color', 'Blocks', 'SetupDate', 'Notes']],
-    ['Production_Log', ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost']],
+    ['Production_Log', ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost', 'BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal']],
     ['Production_Variants', ['Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes']],
     ['CRM_Log', ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes']],
     ['QC_Log', ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes']],

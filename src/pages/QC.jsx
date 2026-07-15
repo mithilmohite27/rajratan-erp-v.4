@@ -5,7 +5,7 @@ import { formatINR, formatNum, today } from '../lib/formulas.js'
 import { confirmDuplicateSave } from '../lib/safety.js'
 
 const COLORS   = ['Red', 'Yellow', 'Black', 'White', 'All Colors']
-const EMOJI    = { Red: '🔴', Yellow: '🟡', Black: '⚫', White: '⚪', 'All Colors': '🎨' }
+const EMOJI    = { Red: '', Yellow: '', Black: '', White: '', 'All Colors': '' }
 const COLOR_BG = { Red: 'bg-red-50 border-red-200', Yellow: 'bg-yellow-50 border-yellow-200', Black: 'bg-gray-100 border-gray-300', White: 'bg-blue-50 border-blue-200', 'All Colors': 'bg-purple-50 border-purple-200' }
 
 async function saveQCViaBackend(entry, accessToken, force = false) {
@@ -127,7 +127,7 @@ export default function QC() {
 
       {/* Tabs */}
       <div className="flex gap-1 px-4 mb-4">
-        {[['log','📝 Log'],['summary','📊 Summary'],['history','🕘 History']].map(([k,l]) => (
+        {[['log',' Log'],['summary',' Summary'],['history',' History']].map(([k,l]) => (
           <button key={k} onClick={() => { setTab(k); setError('') }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all
               ${tab===k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-white text-gray-500 border border-gray-200'}`}>
@@ -139,25 +139,25 @@ export default function QC() {
       <div className="px-4 space-y-3">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl p-3 flex items-start gap-2">
-            <span>⚠️</span><span>{error}</span>
+            <span></span><span>{error}</span>
           </div>
         )}
         {saved && (
           <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-2xl p-3 text-center font-semibold">
-            ✅ Breakage logged — stock updated automatically!
+             Breakage logged — stock updated automatically!
           </div>
         )}
 
         {/* ── LOG TAB ── */}
         {tab === 'log' && <>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex gap-2">
-            <span className="text-lg">⚠️</span>
+            <span className="text-lg"></span>
             <p className="text-xs text-amber-700">Selecting the correct color ensures accurate per-color inventory deduction.</p>
           </div>
 
           {/* Date */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2">📅 Date</label>
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2"> Date</label>
             <input type="date" value={form.date}
               onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
@@ -212,13 +212,13 @@ export default function QC() {
 
           <button onClick={handleSave} disabled={saving}
             className="w-full bg-red-500 disabled:bg-red-300 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-red-200 transition-all active:scale-95">
-            {saving ? '⏳ Logging...' : `🔴 Log ${brokenInput > 0 ? brokenInput.toLocaleString('en-IN') + ' Broken ' : ''}Blocks`}
+            {saving ? ' Logging...' : ` Log ${brokenInput > 0 ? brokenInput.toLocaleString('en-IN') + ' Broken ' : ''}Blocks`}
           </button>
         </>}
 
         {/* ── SUMMARY TAB ── */}
         {tab === 'summary' && (
-          loading ? <div className="text-center py-16 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-16 text-gray-400"> Loading...</div>
           : <>
             {/* Hero */}
             <div className="bg-red-500 rounded-2xl p-5 text-white shadow-lg shadow-red-200">
@@ -251,10 +251,10 @@ export default function QC() {
 
         {/* ── HISTORY TAB ── */}
         {tab === 'history' && (
-          loading ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-8 text-gray-400"> Loading...</div>
           : rows.length === 0
             ? <div className="text-center py-16 text-gray-400">
-                <div className="text-5xl mb-3">✅</div>
+                <div className="text-5xl mb-3"></div>
                 <p className="font-semibold">No breakage recorded yet</p>
               </div>
             : [...rows].reverse().map((r, i) => (
@@ -263,7 +263,7 @@ export default function QC() {
                   <div>
                     <span className="text-sm font-bold text-gray-800">{r.Date}</span>
                     <span className="ml-2 text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">
-                      {EMOJI[r.Color] || '🎨'} {r.Color}
+                      {EMOJI[r.Color] || ''} {r.Color}
                     </span>
                   </div>
                   <span className="text-sm font-bold text-red-500">-{formatINR(r.TotalLoss)}</span>

@@ -5,17 +5,19 @@ import { formatINR, today } from '../lib/formulas.js'
 import { confirmDuplicateSave } from '../lib/safety.js'
 
 // ── Material list matches materials.js MATERIAL_IDS exactly ──
-// 'Color' split into Yellow/Red so material stock deduction works correctly
+// Color pigment is split by color so material stock deduction works correctly.
 const MATERIALS = [
-  { label: 'Cement',   id: 'Cement',   unit: 'bags', emoji: '🏗️' },
-  { label: 'Greet',    id: 'Greet',    unit: 'ton',  emoji: '🪨' },
-  { label: 'Powder',   id: 'Powder',   unit: 'ton',  emoji: '⚪' },
-  { label: 'Chemical', id: 'Chemical', unit: 'L',    emoji: '🧪' },
-  { label: 'Yellow',   id: 'Yellow',   unit: 'kg',   emoji: '🟡' },
-  { label: 'Red',      id: 'Red',      unit: 'kg',   emoji: '🔴' },
-  { label: 'Plastic',  id: 'Plastic',  unit: 'ml',   emoji: '🧴' },
-  { label: 'Reti',     id: 'Reti',     unit: 'ghamela', emoji: '🟫' },
-  { label: 'Other',    id: 'Other',    unit: '',     emoji: '📦' },
+  { label: 'Cement',   id: 'Cement',   unit: 'bags', emoji: '' },
+  { label: 'Greet',    id: 'Greet',    unit: 'ton',  emoji: '' },
+  { label: 'Powder',   id: 'Powder',   unit: 'ton',  emoji: '' },
+  { label: 'Chemical', id: 'Chemical', unit: 'L',    emoji: '' },
+  { label: 'Yellow',   id: 'Yellow',   unit: 'kg',   emoji: '' },
+  { label: 'Red',      id: 'Red',      unit: 'kg',   emoji: '' },
+  { label: 'Black',    id: 'Black',    unit: 'kg',   emoji: '' },
+  { label: 'White',    id: 'White',    unit: 'kg',   emoji: '' },
+  { label: 'Plastic',  id: 'Plastic',  unit: 'ml',   emoji: '' },
+  { label: 'Reti',     id: 'Reti',     unit: 'ghamela', emoji: '' },
+  { label: 'Other',    id: 'Other',    unit: '',     emoji: '' },
 ]
 
 // ── Vendor name autocomplete dropdown ─────────
@@ -55,7 +57,7 @@ function VendorAutocomplete({ value, onChange, vendorList, placeholder }) {
               onMouseDown={() => { onChange(name); setOpen(false) }}
               className="w-full text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-orange-50 hover:text-orange-600 border-b border-gray-50 last:border-0"
             >
-              🏪 {name}
+               {name}
             </button>
           ))}
         </div>
@@ -174,7 +176,7 @@ export default function Vendors() {
 
       setRefresh(v => v + 1)
       setInvoiceForm({ date: today(), vendorName: '', material: 'Cement', quantity: '', amount: '', notes: '' })
-      flash('✅ Invoice saved — Material Stock updated automatically!')
+      flash(' Invoice saved — Material Stock updated automatically!')
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -211,7 +213,7 @@ export default function Vendors() {
 
       setRefresh(v => v + 1)
       setPayForm({ date: today(), vendorName: '', amount: '', source: 'Factory', notes: '' })
-      flash('✅ Payment recorded + Cash Flow updated!')
+      flash(' Payment recorded + Cash Flow updated!')
       setTab('ledger')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -223,7 +225,7 @@ export default function Vendors() {
     <div className="max-w-lg mx-auto">
       {/* Header */}
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
-        <h1 className="text-lg font-bold text-gray-800">🧾 Vendor Ledger</h1>
+        <h1 className="text-lg font-bold text-gray-800"> Vendor Ledger</h1>
         <p className="text-xs text-gray-400">Invoices with quantity auto-update Material Stock</p>
       </div>
 
@@ -244,10 +246,10 @@ export default function Vendors() {
 
         {/* ── LEDGER ── */}
         {tab === 'ledger' && (
-          loading ? <div className="text-center py-12 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-12 text-gray-400"> Loading...</div>
           : vendorList.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-2">🧾</div>
+              <div className="text-4xl mb-2"></div>
               <p>No vendor accounts yet.</p>
               <button onClick={() => setTab('+invoice')}
                 className="mt-3 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold">
@@ -273,7 +275,7 @@ export default function Vendors() {
                       <p className="text-xs text-gray-400">{v.material}</p>
                     </div>
                     <span className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                      {outstanding > 0 ? `Owes ${formatINR(outstanding)}` : '✅ Cleared'}
+                      {outstanding > 0 ? `Owes ${formatINR(outstanding)}` : ' Cleared'}
                     </span>
                   </div>
                   <div className="mt-2 mb-1 bg-gray-100 rounded-full h-2">
@@ -286,7 +288,7 @@ export default function Vendors() {
                   </div>
                   <button onClick={() => { setPayForm(p => ({ ...p, vendorName: v.name })); setTab('payment') }}
                     className="mt-3 w-full border border-orange-300 text-orange-500 text-sm font-bold py-2 rounded-xl">
-                    💵 Record Payment
+                     Record Payment
                   </button>
                 </div>
               )
@@ -297,12 +299,12 @@ export default function Vendors() {
         {/* ── + INVOICE ── */}
         {tab === '+invoice' && <>
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-700">
-            📦 Entering a <strong>quantity</strong> automatically increases Material Stock balance.
+             Entering a <strong>quantity</strong> automatically increases Material Stock balance.
           </div>
 
           {/* Date */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
+            <label className="text-xs text-gray-500 block mb-1"> Date</label>
             <input type="date" value={invoiceForm.date}
               onChange={e => setInvoiceForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
@@ -310,7 +312,7 @@ export default function Vendors() {
 
           {/* Vendor name — autocomplete from existing vendors */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">🏪 Vendor Name</label>
+            <label className="text-xs text-gray-500 block mb-1"> Vendor Name</label>
             <VendorAutocomplete
               value={invoiceForm.vendorName}
               onChange={val => setInvoiceForm(p => ({ ...p, vendorName: val }))}
@@ -321,7 +323,7 @@ export default function Vendors() {
 
           {/* Material picker */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-2">🧱 Material</label>
+            <label className="text-xs text-gray-500 block mb-2"> Material</label>
             <div className="flex flex-wrap gap-2">
               {MATERIALS.map(m => (
                 <button key={m.id}
@@ -337,7 +339,7 @@ export default function Vendors() {
           {/* Quantity — unit auto-set from material */}
           <div className="bg-teal-50 border border-teal-300 rounded-xl p-3">
             <label className="text-xs text-teal-700 font-semibold block mb-1">
-              📦 Quantity received <span className="text-teal-500">(adds to Material Stock)</span>
+               Quantity received <span className="text-teal-500">(adds to Material Stock)</span>
             </label>
             <div className="flex items-center gap-2">
               <input type="number" inputMode="decimal"
@@ -355,7 +357,7 @@ export default function Vendors() {
 
           {/* Amount */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">💰 Invoice Amount (₹)</label>
+            <label className="text-xs text-gray-500 block mb-1"> Invoice Amount (₹)</label>
             <input type="number" inputMode="decimal"
               value={invoiceForm.amount} placeholder="0"
               onChange={e => setInvoiceForm(p => ({ ...p, amount: e.target.value }))}
@@ -364,7 +366,7 @@ export default function Vendors() {
 
           {/* Notes */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📝 Notes</label>
+            <label className="text-xs text-gray-500 block mb-1"> Notes</label>
             <input type="text" value={invoiceForm.notes}
               placeholder="e.g. 50 bags cement delivered"
               onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))}
@@ -373,14 +375,14 @@ export default function Vendors() {
 
           <button onClick={handleInvoice} disabled={saving}
             className="w-full bg-orange-500 disabled:bg-orange-300 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-orange-200">
-            {saving ? '⏳ Saving...' : '💾 Save Invoice'}
+            {saving ? ' Saving...' : ' Save Invoice'}
           </button>
         </>}
 
         {/* ── PAY VENDOR ── */}
         {tab === 'payment' && <>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
+            <label className="text-xs text-gray-500 block mb-1"> Date</label>
             <input type="date" value={payForm.date}
               onChange={e => setPayForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
@@ -388,7 +390,7 @@ export default function Vendors() {
 
           {/* Vendor — dropdown of existing + free type */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-2">🏪 Vendor</label>
+            <label className="text-xs text-gray-500 block mb-2"> Vendor</label>
             {vendorList.length > 0 ? (
               <select value={payForm.vendorName}
                 onChange={e => setPayForm(p => ({ ...p, vendorName: e.target.value }))}
@@ -409,7 +411,7 @@ export default function Vendors() {
 
           {/* Amount */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">💸 Payment Amount (₹)</label>
+            <label className="text-xs text-gray-500 block mb-1"> Payment Amount (₹)</label>
             <input type="number" inputMode="decimal"
               value={payForm.amount} placeholder="0"
               onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))}
@@ -424,9 +426,9 @@ export default function Vendors() {
 
           {/* Account source */}
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-2">🏦 Pay From Which Account?</label>
+            <label className="text-xs text-gray-500 block mb-2"> Pay From Which Account?</label>
             <div className="grid grid-cols-2 gap-2">
-              {[['Factory','🏭 Factory Account'],['External','💼 External / Owner']].map(([k,l]) => (
+              {[['Factory',' Factory Account'],['External',' External / Owner']].map(([k,l]) => (
                 <button key={k} onClick={() => setPayForm(p => ({ ...p, source: k }))}
                   className={`py-3 rounded-xl text-xs font-bold transition-all
                     ${payForm.source === k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-gray-50 border border-gray-200 text-gray-600'}`}>
@@ -442,7 +444,7 @@ export default function Vendors() {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📝 Notes</label>
+            <label className="text-xs text-gray-500 block mb-1"> Notes</label>
             <input type="text" value={payForm.notes} placeholder="Payment reference..."
               onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
@@ -450,15 +452,15 @@ export default function Vendors() {
 
           <button onClick={handlePayment} disabled={saving}
             className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-green-200">
-            {saving ? '⏳ Saving...' : '✅ Record Payment + Deduct from Cash Flow'}
+            {saving ? ' Saving...' : ' Record Payment + Deduct from Cash Flow'}
           </button>
         </>}
 
         {/* ── HISTORY ── */}
         {tab === 'history' && (
-          loading ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-8 text-gray-400"> Loading...</div>
           : rows.length === 0
-            ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2">📋</div><p>No entries yet.</p></div>
+            ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2"></div><p>No entries yet.</p></div>
             : [...rows].reverse().map((r, i) => (
               <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
                 <div className="flex justify-between items-center">

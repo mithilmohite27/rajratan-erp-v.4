@@ -122,7 +122,7 @@ export default function PL() {
     <div className="max-w-lg mx-auto">
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
-        <h1 className="text-2xl font-bold text-gray-900">📊 P&L Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900"> P&L Dashboard</h1>
         <p className="text-sm text-gray-400 mt-0.5">Live from all modules · auto-calculated</p>
       </div>
 
@@ -155,7 +155,7 @@ export default function PL() {
 
         {loading ? (
           <div className="text-center py-20 text-gray-400">
-            <div className="text-5xl mb-3">📊</div>
+            <div className="text-5xl mb-3"></div>
             <p className="font-semibold">Loading dashboard...</p>
           </div>
         ) : <>
@@ -181,10 +181,10 @@ export default function PL() {
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Blocks Made',  value: totalBlocks.toLocaleString('en-IN'), icon: '🧱', bg: 'bg-orange-50 border-orange-100' },
-                { label: 'Cost / Block', value: formatINR(costPerBlock),             icon: '💰', bg: 'bg-blue-50 border-blue-100' },
-                { label: 'Total Broken', value: totalBroken.toLocaleString('en-IN'), icon: '🔴', bg: 'bg-red-50 border-red-100' },
-                { label: 'Cash Balance', value: formatINR(cashIn - cashOut),         icon: '🏦', bg: 'bg-green-50 border-green-100' },
+                { label: 'Blocks Made',  value: totalBlocks.toLocaleString('en-IN'), icon: '', bg: 'bg-orange-50 border-orange-100' },
+                { label: 'Cost / Block', value: formatINR(costPerBlock),             icon: '', bg: 'bg-blue-50 border-blue-100' },
+                { label: 'Total Broken', value: totalBroken.toLocaleString('en-IN'), icon: '', bg: 'bg-red-50 border-red-100' },
+                { label: 'Cash Balance', value: formatINR(cashIn - cashOut),         icon: '', bg: 'bg-green-50 border-green-100' },
               ].map(k => (
                 <div key={k.label} className={`rounded-2xl p-4 border shadow-sm ${k.bg}`}>
                   <div className="flex justify-between items-start mb-2">
@@ -214,7 +214,7 @@ export default function PL() {
           {/* ── P&L STATEMENT ── */}
           {tab === 'statement' && (
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">📋 {period} Statement</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3"> {period} Statement</p>
 
               <div className="bg-green-50 rounded-xl p-3 mb-3">
                 <div className="flex justify-between"><span className="text-sm font-semibold text-green-700">↑ Gross Revenue</span>
@@ -222,13 +222,13 @@ export default function PL() {
               </div>
 
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-1 mt-3">Cost of Goods Sold</p>
-              <PLRow label="🏗 Materials"  value={totalMaterialOnly} type="negative" indent />
-              <PLRow label="👷 Labour"     value={totalLabour}       type="negative" indent />
-              <PLRow label="🚛 Freight"    value={totalFreight}      type="negative" indent />
+              <PLRow label=" Materials"  value={totalMaterialOnly} type="negative" indent />
+              <PLRow label=" Labour"     value={totalLabour}       type="negative" indent />
+              <PLRow label=" Freight"    value={totalFreight}      type="negative" indent />
               <PLRow label="Total COGS"    value={totalCOGS}         type="total" />
 
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-1 mt-3">Other Losses</p>
-              <PLRow label="🔴 Wastage (QC)" value={totalWastage} type="negative" indent />
+              <PLRow label=" Wastage (QC)" value={totalWastage} type="negative" indent />
 
               <div className={`mt-3 rounded-2xl p-4 flex justify-between items-center
                 ${isProfit ? 'bg-green-50' : 'bg-red-50'}`}>
@@ -241,7 +241,7 @@ export default function PL() {
               </div>
 
               {/* Production stats */}
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-2 mt-4">🏭 Production</p>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-2 mt-4"> Production</p>
               <div className="grid grid-cols-3 gap-2 text-xs text-center">
                 {[
                   { label: 'Blocks', value: totalBlocks.toLocaleString('en-IN'), bg: 'bg-orange-50' },
@@ -346,7 +346,7 @@ export default function PL() {
           {/* ── CASH ── */}
           {tab === 'cash' && (
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">💰 Cash Flow — All Time</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3"> Cash Flow — All Time</p>
               <div className={`rounded-2xl p-4 mb-3 text-white ${(cashIn - cashOut) >= 0 ? 'bg-green-500' : 'bg-red-500'}`}>
                 <p className="text-xs opacity-75 mb-1">Net Balance</p>
                 <p className="text-3xl font-black">{formatINR(cashIn - cashOut)}</p>
@@ -369,7 +369,7 @@ export default function PL() {
           {/* No data */}
           {grossRevenue === 0 && totalExpenses === 0 && tab === 'overview' && (
             <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
-              <p className="text-2xl mb-2">📭</p>
+              <p className="text-2xl mb-2"></p>
               <p className="font-semibold text-gray-600 text-sm">No data for {period.toLowerCase()} period</p>
               <p className="text-xs text-gray-400 mt-1">Try switching to "All Time" to see historical data</p>
             </div>
@@ -377,7 +377,7 @@ export default function PL() {
 
           <button onClick={() => window.location.reload()}
             className="w-full border border-gray-200 bg-white text-gray-500 font-semibold py-3 rounded-2xl text-sm shadow-sm">
-            🔄 Refresh All Data
+             Refresh All Data
           </button>
         </>}
       </div>

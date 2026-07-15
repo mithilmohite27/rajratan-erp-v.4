@@ -180,7 +180,7 @@ export default function CashFlow() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
-        <h1 className="text-lg font-bold text-gray-800">💰 Cash Flow</h1>
+        <h1 className="text-lg font-bold text-gray-800"> Cash Flow</h1>
         <p className="text-xs text-gray-400">Track money in and out across Factory & External</p>
       </div>
       <div className="flex bg-white border-b border-gray-100 sticky top-[calc(3rem+4rem)] z-10">
@@ -197,7 +197,7 @@ export default function CashFlow() {
 
         {/* DASHBOARD */}
         {tab === 'dashboard' && (
-          loading ? <div className="text-center py-12 text-gray-400">⏳ Loading...</div> : <>
+          loading ? <div className="text-center py-12 text-gray-400"> Loading...</div> : <>
             <div className="bg-orange-500 rounded-2xl p-4 text-white">
               <p className="text-sm opacity-80 mb-1">Net Available Balance</p>
               <p className="text-4xl font-bold">{formatINR(totalNet)}</p>
@@ -210,7 +210,7 @@ export default function CashFlow() {
             {SOURCES.map(src => (
               <div key={src} className="bg-white border border-gray-100 rounded-xl p-4">
                 <p className="font-bold text-gray-700 mb-3">
-                  {src === 'Factory' ? '🏭 Factory Account' : '💼 External (Owner) Account'}
+                  {src === 'Factory' ? ' Factory Account' : ' External (Owner) Account'}
                 </p>
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="bg-green-50 rounded-xl p-2">
@@ -242,36 +242,36 @@ export default function CashFlow() {
         {tab === 'in' && <>
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Record Cash In</div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
+            <label className="text-xs text-gray-500 block mb-1"> Date</label>
             <input type="date" value={inForm.date} onChange={e => setInForm(p=>({...p,date:e.target.value}))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-2">🏦 Source</label>
+            <label className="text-xs text-gray-500 block mb-2"> Source</label>
             <div className="grid grid-cols-2 gap-2">
               {SOURCES.map(s => (
                 <button key={s} onClick={() => setInForm(p=>({...p,source:s}))}
                   className={`py-3 rounded-xl font-bold text-sm ${inForm.source===s?'bg-orange-500 text-white':'bg-gray-100 text-gray-600'}`}>
-                  {s === 'Factory' ? '🏭 Factory Revenue' : '💼 Owner Capital'}
+                  {s === 'Factory' ? ' Factory Revenue' : ' Owner Capital'}
                 </button>
               ))}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">💵 Amount (₹)</label>
+            <label className="text-xs text-gray-500 block mb-1"> Amount (₹)</label>
             <input type="number" inputMode="decimal" value={inForm.amount} placeholder="0"
               onChange={e => setInForm(p=>({...p,amount:e.target.value}))}
               className="w-full text-2xl font-bold text-gray-800 outline-none bg-transparent" />
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📝 Description</label>
+            <label className="text-xs text-gray-500 block mb-1"> Description</label>
             <input type="text" value={inForm.description} placeholder="e.g. Payment from Ramesh Patel"
               onChange={e => setInForm(p=>({...p,description:e.target.value}))}
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
           </div>
           <button onClick={handleIn} disabled={saving}
             className="w-full bg-green-500 disabled:bg-green-300 text-white font-bold py-4 rounded-xl text-lg">
-            {saving ? '⏳ Saving...' : '✅ Record Cash In'}
+            {saving ? ' Saving...' : ' Record Cash In'}
           </button>
         </>}
 
@@ -279,29 +279,29 @@ export default function CashFlow() {
         {tab === 'out' && <>
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Record Cash Out</div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📅 Date</label>
+            <label className="text-xs text-gray-500 block mb-1"> Date</label>
             <input type="date" value={outForm.date} onChange={e => setOutForm(p=>({...p,date:e.target.value}))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-2">🏦 Paid From</label>
+            <label className="text-xs text-gray-500 block mb-2"> Paid From</label>
             <div className="grid grid-cols-2 gap-2">
               {SOURCES.map(s => (
                 <button key={s} onClick={() => setOutForm(p=>({...p,source:s}))}
                   className={`py-3 rounded-xl font-bold text-sm ${outForm.source===s?'bg-orange-500 text-white':'bg-gray-100 text-gray-600'}`}>
-                  {s === 'Factory' ? '🏭 Factory' : '💼 External'}
+                  {s === 'Factory' ? ' Factory' : ' External'}
                 </button>
               ))}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">💸 Amount (₹)</label>
+            <label className="text-xs text-gray-500 block mb-1"> Amount (₹)</label>
             <input type="number" inputMode="decimal" value={outForm.amount} placeholder="0"
               onChange={e => setOutForm(p=>({...p,amount:e.target.value}))}
               className="w-full text-2xl font-bold text-gray-800 outline-none bg-transparent" />
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <label className="text-xs text-gray-500 block mb-1">📝 Description</label>
+            <label className="text-xs text-gray-500 block mb-1"> Description</label>
             <input type="text" value={outForm.description} placeholder="e.g. Cement payment to Sharma"
               onChange={e => setOutForm(p=>({...p,description:e.target.value}))}
               className="w-full text-base text-gray-800 outline-none bg-transparent" />
@@ -322,13 +322,13 @@ export default function CashFlow() {
           </div>
           <button onClick={handleOut} disabled={saving}
             className="w-full bg-red-500 disabled:bg-red-300 text-white font-bold py-4 rounded-xl text-lg">
-            {saving ? '⏳ Saving...' : '✅ Record Cash Out'}
+            {saving ? ' Saving...' : ' Record Cash Out'}
           </button>
         </>}
 
         {/* HISTORY */}
         {tab === 'history' && (
-          loading ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-8 text-gray-400"> Loading...</div>
           : [...rows].reverse().map((r, i) => (
             <div key={i} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
               <div className="flex justify-between items-center">

@@ -15,6 +15,7 @@ const MATERIAL_UNITS = {
   Yellow: 'kg',
   Red: 'kg',
   Black: 'kg',
+  White: 'kg',
   Reti: 'ghamela',
   Plastic: 'ml',
 }

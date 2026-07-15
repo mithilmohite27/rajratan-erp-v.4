@@ -85,6 +85,18 @@ function toRows(map) {
   return Object.entries(map).map(([label, value]) => ({ label, value }))
 }
 
+function reportLabel(key) {
+  return REPORTS.find(([reportKey]) => reportKey === key)?.[1] || 'Report'
+}
+
+function rangeText(filter, range) {
+  if (filter === 'today') return 'Today'
+  if (filter === 'week') return 'This week'
+  if (filter === 'month') return 'This month'
+  if (range.start || range.end) return `${range.start || 'Start'} to ${range.end || 'Today'}`
+  return 'All available dates'
+}
+
 function downloadCSV(filename, rows) {
   if (!rows.length) return
   const headers = Object.keys(rows[0])
@@ -101,44 +113,58 @@ function downloadCSV(filename, rows) {
 
 function ReportTabs({ active, onChange }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {REPORTS.map(([key, label]) => (
-        <button
-          key={key}
-          onClick={() => onChange(key)}
-          className={`shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black transition ${
-            active === key
-              ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
-              : 'border border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
+    <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Report Modules</p>
+          <p className="mt-1 text-sm font-bold text-slate-900">Choose one clean business report at a time.</p>
+        </div>
+        <StatusBadge tone="blue">{REPORTS.length} reports</StatusBadge>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {REPORTS.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className={`shrink-0 rounded-2xl px-4 py-2.5 text-xs font-black transition ${
+              active === key
+                ? 'bg-slate-950 text-white shadow-lg shadow-slate-200'
+                : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
 
 function FilterBar({ filter, setFilter, customStart, setCustomStart, customEnd, setCustomEnd }) {
   return (
-    <SectionCard title="Filters" subtitle="Client-side only. Nothing is saved to Google Sheets.">
-      <div className="flex flex-wrap gap-2">
-        {[
-          ['today', 'Today'],
-          ['week', 'This Week'],
-          ['month', 'This Month'],
-          ['custom', 'Custom'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`rounded-2xl px-4 py-2 text-xs font-black ${
-              filter === key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+    <SectionCard title="Date Filter" subtitle="Client-side only. Nothing is saved to Google Sheets.">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['today', 'Today'],
+            ['week', 'This Week'],
+            ['month', 'This Month'],
+            ['custom', 'Custom'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`rounded-2xl px-4 py-2 text-xs font-black transition ${
+                filter === key ? 'bg-slate-950 text-white shadow-md shadow-slate-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+          Active: {filter === 'custom' ? 'Custom range' : filter === 'week' ? 'This week' : filter === 'today' ? 'Today' : 'This month'}
+        </p>
       </div>
       {filter === 'custom' && (
         <FormGrid className="mt-3">
@@ -157,15 +183,15 @@ function SimpleTable({ columns, rows, empty = 'No rows for this period.' }) {
   return (
     <ResponsiveTable>
       <thead>
-        <tr className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-          {columns.map(col => <th key={col.key} className="px-3 py-3 text-left font-black">{col.label}</th>)}
+        <tr className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+          {columns.map(col => <th key={col.key} className="whitespace-nowrap px-4 py-3 text-left font-black">{col.label}</th>)}
         </tr>
       </thead>
-      <tbody>
+      <tbody className="divide-y divide-slate-100">
         {rows.map((row, i) => (
-          <tr key={i} className="border-t border-slate-100">
+          <tr key={i} className="transition hover:bg-orange-50/50">
             {columns.map(col => (
-              <td key={col.key} className="px-3 py-3 text-sm font-semibold text-slate-700">
+              <td key={col.key} className="px-4 py-3 text-sm font-semibold text-slate-700">
                 {col.render ? col.render(row[col.key], row) : row[col.key]}
               </td>
             ))}
@@ -181,9 +207,9 @@ function ExportButton({ reportKey, rows }) {
     <button
       onClick={() => downloadCSV(`rajratan-${reportKey}-${today()}.csv`, rows)}
       disabled={!rows.length}
-      className="rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white disabled:bg-slate-300"
+      className="rounded-2xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-slate-200 transition hover:bg-orange-600 disabled:bg-slate-300 disabled:shadow-none"
     >
-      Export CSV
+      {rows.length ? 'Export CSV' : 'No Rows to Export'}
     </button>
   )
 }
@@ -283,7 +309,12 @@ export default function Reports() {
   if (loading || !report || !data) {
     return (
       <ModuleShell eyebrow="Owner Reports" title="Reports Center" subtitle="Read-only reports from existing Google Sheet data.">
-        <SectionCard><div className="py-10 text-center text-sm font-semibold text-slate-400">Loading reports...</div></SectionCard>
+        <SectionCard>
+          <div className="grid gap-3 py-2 sm:grid-cols-3">
+            {[1, 2, 3].map(i => <div key={i} className="h-24 animate-pulse rounded-3xl bg-slate-100" />)}
+          </div>
+          <div className="py-5 text-center text-sm font-semibold text-slate-400">Loading reports...</div>
+        </SectionCard>
       </ModuleShell>
     )
   }
@@ -315,6 +346,7 @@ export default function Reports() {
   const qcLoss = report.qc.reduce((s, r) => s + num(r.TotalLoss), 0)
   const qcColorRows = toRows(groupSum(report.qc, 'Color', 'BrokenBlocks'))
   const qcDateRows = toRows(groupSum(report.qc, 'Date', 'BrokenBlocks'))
+  const visibleRows = exportRows.length
 
   return (
     <ModuleShell
@@ -334,6 +366,26 @@ export default function Reports() {
           customEnd={customEnd}
           setCustomEnd={setCustomEnd}
         />
+        <section className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 md:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Current Report</p>
+            <p className="mt-1 text-sm font-black text-slate-950">{reportLabel(active)}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Date Range</p>
+            <p className="mt-1 text-sm font-black text-slate-950">{rangeText(filter, range)}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Visible Rows</p>
+            <p className="mt-1 text-sm font-black text-slate-950">{visibleRows.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Export Status</p>
+            <p className={`mt-1 text-sm font-black ${visibleRows ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {visibleRows ? 'Ready for CSV' : 'No rows found'}
+            </p>
+          </div>
+        </section>
       </div>
 
       {active === 'production' && (
@@ -358,7 +410,7 @@ export default function Reports() {
               { label: 'Greet ton', value: formatNum(report.production.reduce((s, r) => s + num(r.Greet_kg), 0) / 1000, 3) },
               { label: 'Powder ton', value: formatNum(report.production.reduce((s, r) => s + num(r.Powder_kg), 0) / 1000, 3) },
               { label: 'Chemical L', value: formatNum(report.production.reduce((s, r) => s + num(r.Chemical_L), 0), 2) },
-              { label: 'Color kg', value: formatNum(report.production.reduce((s, r) => s + num(r.YellowKG) + num(r.RedKG), 0), 2) },
+              { label: 'Color kg', value: formatNum(report.production.reduce((s, r) => s + num(r.YellowKG) + num(r.RedKG) + num(r.BlackKG) + num(r.WhiteKG), 0), 2) },
             ]} />
           </SectionCard>
         </div>

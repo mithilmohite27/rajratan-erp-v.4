@@ -210,8 +210,8 @@ function TaxInvoicePreview({ data, config }) {
             <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <img
-                  src="/rajratan_enterprises_logo.svg"
-                  alt="Raj Ratan Enterprise Logo"
+                  src="/assets/rajratan-erp-icon-light.png"
+                  alt="Rajratan ERP"
                   style={{ width: '85px', height: '85px', objectFit: 'contain', flexShrink: 0 }}
                 />
 
@@ -537,8 +537,8 @@ function ChallanPreview({ data, config }) {
             <td style={{ border: '1px solid #000', padding: '6px', verticalAlign: 'top', width: '55%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <img
-                  src="/rajratan_enterprises_logo.svg"
-                  alt="Raj Ratan Enterprise Logo"
+                  src="/assets/rajratan-erp-icon-light.png"
+                  alt="Rajratan ERP"
                   style={{ width: '85px', height: '85px', objectFit: 'contain', flexShrink: 0 }}
                 />
 
@@ -823,10 +823,10 @@ export default function BillGenerator() {
     const el = printRef.current
     if (!el) return
 
-    const logoUrl = `${window.location.origin}/rajratan_enterprises_logo.svg`
+    const logoUrl = `${window.location.origin}/assets/rajratan-erp-icon-light.png`
 
     const printHTML = el.innerHTML.replaceAll(
-      '/rajratan_enterprises_logo.svg',
+      '/assets/rajratan-erp-icon-light.png',
       logoUrl
     )
 
@@ -889,15 +889,15 @@ export default function BillGenerator() {
 
       {/* Header */}
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
-        <h1 className="text-lg font-bold text-gray-800">🧾 Bill Generator</h1>
+        <h1 className="text-lg font-bold text-gray-800"> Bill Generator</h1>
         <p className="text-xs text-gray-400">Tax Invoice · Delivery Challan · Print to PDF</p>
       </div>
 
       {/* Bill type toggle */}
       <div className="flex gap-2 p-4 pb-0">
         {[
-          ['invoice', '📄 Tax Invoice'],
-          ['challan', '🚚 Delivery Challan']
+          ['invoice', ' Tax Invoice'],
+          ['challan', ' Delivery Challan']
         ].map(([k, l]) => (
           <button
             key={k}
@@ -916,8 +916,8 @@ export default function BillGenerator() {
       {/* Preview toggle */}
       <div className="flex gap-2 px-4 pt-3">
         {[
-          ['form', '✏️ Fill Form'],
-          ['preview', '👁️ Preview']
+          ['form', ' Fill Form'],
+          ['preview', ' Preview']
         ].map(([k, l]) => (
           <button
             key={k}
@@ -938,7 +938,7 @@ export default function BillGenerator() {
         <div className="p-4 space-y-3">
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
             <p className="text-xs font-bold text-orange-700 mb-1">
-              {billType === 'invoice' ? '📄 Tax Invoice' : '🚚 Delivery Challan'} — Fill the details below
+              {billType === 'invoice' ? ' Tax Invoice' : ' Delivery Challan'} — Fill the details below
             </p>
             <p className="text-xs text-orange-600">Switch to Preview tab to see the bill, then click Print PDF.</p>
           </div>
@@ -946,7 +946,7 @@ export default function BillGenerator() {
           {/* CRM Client Picker */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-              🤝 Pick from CRM Clients {crmLoading && <span className="text-orange-400 font-normal">(loading...)</span>}
+               Pick from CRM Clients {crmLoading && <span className="text-orange-400 font-normal">(loading...)</span>}
             </p>
 
             {clients.length > 0 ? (
@@ -967,20 +967,20 @@ export default function BillGenerator() {
 
                 {selectedClient && (
                   <div className="bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 text-xs text-teal-700 font-semibold">
-                    ✅ Client auto-filled from CRM — edit below if needed
+                     Client auto-filled from CRM — edit below if needed
                   </div>
                 )}
               </>
             ) : (
               <p className="text-xs text-gray-400">
-                {crmLoading ? '⏳ Loading CRM clients...' : 'No clients in CRM yet. Fill manually below.'}
+                {crmLoading ? ' Loading CRM clients...' : 'No clients in CRM yet. Fill manually below.'}
               </p>
             )}
           </div>
 
           {/* Bill Info */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">📋 Bill Info</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide"> Bill Info</p>
 
             <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">
@@ -1035,7 +1035,7 @@ export default function BillGenerator() {
 
           {/* Client Info */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">👤 Client / Bill To</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide"> Client / Bill To</p>
 
             <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">Client Name</label>
@@ -1106,7 +1106,7 @@ export default function BillGenerator() {
 
           {/* Item Details */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">🧱 Item Details</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide"> Item Details</p>
 
             <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">Item Description</label>
@@ -1227,7 +1227,7 @@ export default function BillGenerator() {
             onClick={() => setPreview(true)}
             className="w-full bg-orange-500 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-orange-200"
           >
-            👁️ Preview Bill
+             Preview Bill
           </button>
         </div>
       )}
@@ -1239,7 +1239,7 @@ export default function BillGenerator() {
             onClick={handlePrint}
             className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-green-200 mb-4"
           >
-            🖨️ Print / Save as PDF
+             Print / Save as PDF
           </button>
 
           <p className="text-xs text-center text-gray-400 mb-4">

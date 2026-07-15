@@ -11,11 +11,11 @@ function Placeholder({ emoji, title, desc, features }) {
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-left space-y-2">
           <p className="text-xs font-bold text-orange-600 mb-2">This module will include:</p>
           {features.map((f, i) => (
-            <p key={i} className="text-xs text-gray-600">✅ {f}</p>
+            <p key={i} className="text-xs text-gray-600"> {f}</p>
           ))}
         </div>
         <div className="mt-4 bg-gray-100 rounded-xl py-3 px-4">
-          <p className="text-xs text-gray-500">🚧 Being built — tell your CEO to request this module next!</p>
+          <p className="text-xs text-gray-500"> Being built — tell your CEO to request this module next!</p>
         </div>
       </div>
     </div>
@@ -24,7 +24,7 @@ function Placeholder({ emoji, title, desc, features }) {
 
 export function Inventory() {
   return <Placeholder
-    emoji="📦" title="Inventory & Stock"
+    emoji="" title="Inventory & Stock"
     desc="Real-time block stock tracking by color in units and brass"
     features={[
       'Stock by color: Red, Yellow, Black, White',
@@ -38,7 +38,7 @@ export function Inventory() {
 
 export function CRM() {
   return <Placeholder
-    emoji="🤝" title="Client CRM & Orders"
+    emoji="" title="Client CRM & Orders"
     desc="Manage clients, orders, dispatch tracking, and transport"
     features={[
       'Register client with order in brass + rate',
@@ -52,7 +52,7 @@ export function CRM() {
 
 export function CashFlow() {
   return <Placeholder
-    emoji="💰" title="Cash Flow"
+    emoji="" title="Cash Flow"
     desc="Track all money in and out across Factory and Owner accounts"
     features={[
       'Cash In: Factory Revenue or Owner Capital',
@@ -66,7 +66,7 @@ export function CashFlow() {
 
 export function QC() {
   return <Placeholder
-    emoji="🔴" title="Quality Control & Wastage"
+    emoji="" title="Quality Control & Wastage"
     desc="Log broken blocks, auto-deduct from stock, calculate loss"
     features={[
       'Daily broken block count entry',
@@ -79,7 +79,7 @@ export function QC() {
 
 export function Vendors() {
   return <Placeholder
-    emoji="🧾" title="Vendor / AP Ledger"
+    emoji="" title="Vendor / AP Ledger"
     desc="Manage supplier accounts, invoices, and outstanding balances"
     features={[
       'Separate ledger (khata) per vendor',
@@ -92,7 +92,7 @@ export function Vendors() {
 
 export function Payroll() {
   return <Placeholder
-    emoji="👷" title="Payroll & Labour"
+    emoji="" title="Payroll & Labour"
     desc="Piece-rate payroll, advance (upad) ledger, net payable tracker"
     features={[
       'Daily blocks per worker → auto wage (₹1.80/block)',
@@ -105,7 +105,7 @@ export function Payroll() {
 
 export function PL() {
   return <Placeholder
-    emoji="📊" title="Executive P&L Dashboard"
+    emoji="" title="Executive P&L Dashboard"
     desc="Live profit & loss pulling data from all modules"
     features={[
       'Gross Revenue from CRM sales',

@@ -120,7 +120,7 @@ export default function Payroll() {
 
       setRefresh(v => v + 1)
       setAdvForm({ date: today(), workerName: '', amount: '', source: 'Factory', notes: '' })
-      flash(`✅ Advance saved + ${advForm.source} account debited!`)
+      flash(` Advance saved + ${advForm.source} account debited!`)
       setTab('workers')
     } catch (e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -134,7 +134,7 @@ export default function Payroll() {
       </div>
 
       <div className="flex gap-1.5 px-4 mb-4">
-        {[['workers','👷 Workers'],['advance','+ Advance'],['history','History']].map(([k,l]) => (
+        {[['workers',' Workers'],['advance','+ Advance'],['history','History']].map(([k,l]) => (
           <button key={k} onClick={() => { setTab(k); setError('') }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all
               ${tab===k ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'bg-white border border-gray-200 text-gray-500'}`}>
@@ -149,7 +149,7 @@ export default function Payroll() {
 
         {/* ── WORKERS OVERVIEW ── */}
         {tab === 'workers' && (
-          loading ? <div className="text-center py-16 text-gray-400">⏳ Loading...</div> : <>
+          loading ? <div className="text-center py-16 text-gray-400"> Loading...</div> : <>
 
             {/* Summary hero */}
             <div className="bg-orange-500 rounded-2xl p-5 text-white shadow-lg shadow-orange-200">
@@ -174,7 +174,7 @@ export default function Payroll() {
 
             {/* Auto labour note */}
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3">
-              <p className="text-xs font-bold text-blue-600 mb-1">⚡ Auto Labour Calculation</p>
+              <p className="text-xs font-bold text-blue-600 mb-1"> Auto Labour Calculation</p>
               <p className="text-xs text-gray-600">
                 Labour cost is calculated automatically from daily production at <strong>₹{wageRate}/block</strong>.
                 No manual wage entry needed — just save production daily and this updates automatically.
@@ -184,7 +184,7 @@ export default function Payroll() {
             {/* Per-worker advance summary */}
             {workerList.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
-                <div className="text-4xl mb-2">👷</div>
+                <div className="text-4xl mb-2"></div>
                 <p>No advance payments yet.</p>
                 <button onClick={() => setTab('advance')}
                   className="mt-3 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold">
@@ -225,13 +225,13 @@ export default function Payroll() {
         {/* ── ADVANCE TAB ── */}
         {tab === 'advance' && <>
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3">
-            <p className="text-xs font-bold text-yellow-700 mb-0.5">💰 Advance (Upad) Payment</p>
+            <p className="text-xs font-bold text-yellow-700 mb-0.5"> Advance (Upad) Payment</p>
             <p className="text-xs text-gray-500">This payment will be deducted from the selected account in Cash Flow automatically.</p>
           </div>
 
           {/* Date */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2">📅 Date</label>
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2"> Date</label>
             <input type="date" value={advForm.date}
               onChange={e => setAdvForm(p => ({ ...p, date: e.target.value }))}
               className="w-full text-lg font-bold text-gray-800 outline-none bg-transparent" />
@@ -239,7 +239,7 @@ export default function Payroll() {
 
           {/* Worker */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2">👤 Worker Name</label>
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2"> Worker Name</label>
             {workerList.length > 0 ? (
               <select value={advForm.workerName}
                 onChange={e => setAdvForm(p => ({ ...p, workerName: e.target.value }))}
@@ -256,7 +256,7 @@ export default function Payroll() {
 
           {/* Amount */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2">💵 Advance Amount (₹)</label>
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-2"> Advance Amount (₹)</label>
             <input type="number" inputMode="decimal" value={advForm.amount} placeholder="0"
               onChange={e => setAdvForm(p => ({ ...p, amount: e.target.value }))}
               className="w-full text-4xl font-bold text-gray-800 outline-none bg-transparent" />
@@ -265,12 +265,12 @@ export default function Payroll() {
           {/* Account source — KEY FEATURE */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide block mb-3">
-              🏦 Pay From Which Account?
+               Pay From Which Account?
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { key: 'Factory',  label: '🏭 Factory Account',      sub: 'Factory revenue funds' },
-                { key: 'External', label: '💼 External / Owner',      sub: 'Owner capital funds'   },
+                { key: 'Factory',  label: ' Factory Account',      sub: 'Factory revenue funds' },
+                { key: 'External', label: ' External / Owner',      sub: 'Owner capital funds'   },
               ].map(opt => (
                 <button key={opt.key}
                   onClick={() => setAdvForm(p => ({ ...p, source: opt.key }))}
@@ -296,22 +296,22 @@ export default function Payroll() {
 
           {/* Notes */}
           <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm">
-            <input type="text" value={advForm.notes} placeholder="📝 Notes (optional)"
+            <input type="text" value={advForm.notes} placeholder=" Notes (optional)"
               onChange={e => setAdvForm(p => ({ ...p, notes: e.target.value }))}
               className="w-full text-sm text-gray-700 outline-none bg-transparent" />
           </div>
 
           <button onClick={handleAdvance} disabled={saving}
             className="w-full bg-yellow-500 disabled:bg-yellow-300 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-yellow-200 active:scale-95 transition-all">
-            {saving ? '⏳ Saving...' : '💰 Record Advance + Deduct from Cash Flow'}
+            {saving ? ' Saving...' : ' Record Advance + Deduct from Cash Flow'}
           </button>
         </>}
 
         {/* ── HISTORY ── */}
         {tab === 'history' && (
-          loading ? <div className="text-center py-8 text-gray-400">⏳ Loading...</div>
+          loading ? <div className="text-center py-8 text-gray-400"> Loading...</div>
           : rows.length === 0
-            ? <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-2">📋</div><p>No advance entries yet.</p></div>
+            ? <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-2"></div><p>No advance entries yet.</p></div>
             : [...rows].reverse().map((r, i) => (
               <div key={i} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm mb-2">
                 <div className="flex justify-between items-center">

@@ -44,8 +44,12 @@ export function validateProductionPayload(payload = {}) {
     'chemical',
     'yellowKG',
     'redKG',
+    'blackKG',
+    'whiteKG',
     'yellowFinal',
     'redFinal',
+    'blackFinal',
+    'whiteFinal',
     'reti',
     'plastic',
     'misc',
@@ -64,6 +68,10 @@ export function validateProductionPayload(payload = {}) {
   numericFields.forEach(field => {
     entry[field] = numberValue(entryPayload[field])
   })
+
+  if (numericFields.some(field => entry[field] < 0)) {
+    return fail('Production numeric values cannot be negative.', 'INVALID_AMOUNT')
+  }
 
   const variants = variantPayload.map(variant => ({
     date: cleanText(variant.date) || date,

@@ -180,13 +180,14 @@ export async function getOpeningStockMap(accessToken) {
 //          Greet_Ton | Powder_Ton | Chemical_L | YellowKG | RedKG |
 //          YellowFinal | RedFinal | Reti | Plastic_ml | MiscExpenses |
 //          CementCost | GreetCost | PowderCost | ChemicalCost |
-//          ColorCost | PlasticCost | RetiCost | LabourCost | TotalDailyCost
+//          ColorCost | PlasticCost | RetiCost | LabourCost | TotalDailyCost |
+//          BlackKG | WhiteKG | BlackFinal | WhiteFinal
 // ─────────────────────────────────────────────
 
-/** Explicit column-matching loader — reads all 24 columns including costs.
+/** Explicit column-matching loader — reads production columns including costs.
  *  Tolerant of header spelling variants (Greet_Ton vs Greet_kg, etc.) */
 export async function loadProduction(accessToken) {
-  const raw = await readSheet(accessToken, 'Production_Log!A:Z')
+  const raw = await readSheet(accessToken, 'Production_Log!A:AB')
   if (!raw || raw.length < 2) return []
 
   const headers = raw[0].map(h => (h || '').toString().trim())
@@ -216,8 +217,14 @@ export async function loadProduction(accessToken) {
                               && !h.includes('cost'),                               8),
     redKG:          col(h => h.includes('red')    && !h.includes('final')
                               && !h.includes('cost'),                               9),
+    blackKG:        col(h => h.includes('black')  && !h.includes('final')
+                              && !h.includes('cost'),                              24),
+    whiteKG:        col(h => h.includes('white')  && !h.includes('final')
+                              && !h.includes('cost'),                              25),
     yellowFinal:    col(h => h.includes('yellow') && h.includes('final'),          10),
     redFinal:       col(h => h.includes('red')    && h.includes('final'),          11),
+    blackFinal:     col(h => h.includes('black')  && h.includes('final'),          26),
+    whiteFinal:     col(h => h.includes('white')  && h.includes('final'),          27),
     reti:           col(h => h === 'reti',                                         12),
     plastic:        col(h => h.includes('plastic') && !h.includes('cost'),         13),
     miscExpenses:   col(h => h.includes('misc'),                                   14),
@@ -249,8 +256,12 @@ export async function loadProduction(accessToken) {
       Chemical_L:     cell(row, idx.chemical),
       YellowKG:       cell(row, idx.yellowKG),
       RedKG:          cell(row, idx.redKG),
+      BlackKG:        cell(row, idx.blackKG),
+      WhiteKG:        cell(row, idx.whiteKG),
       YellowFinal:    cell(row, idx.yellowFinal),
       RedFinal:       cell(row, idx.redFinal),
+      BlackFinal:     cell(row, idx.blackFinal),
+      WhiteFinal:     cell(row, idx.whiteFinal),
       Reti:           cell(row, idx.reti),
       Plastic_ml:     cell(row, idx.plastic),
       MiscExpenses:   cell(row, idx.miscExpenses),
@@ -273,7 +284,8 @@ export async function saveProductionEntry(accessToken, entry) {
     'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG',
     'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses',
     'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost',
-    'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost'
+    'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost',
+    'BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal'
   ])
   await appendRow(accessToken, 'Production_Log!A:A', [
     entry.date,        entry.blocks,      entry.mortarCement, entry.colorCement,
@@ -283,6 +295,7 @@ export async function saveProductionEntry(accessToken, entry) {
     entry.cementCost,  entry.greetCost,   entry.powderCost,   entry.chemicalCost,
     entry.colorCost,   entry.plasticCost, entry.retiCost,     entry.labourCost,
     entry.totalDailyCost,
+    entry.blackKG || 0, entry.whiteKG || 0, entry.blackFinal || 0, entry.whiteFinal || 0,
   ])
 }
 
@@ -603,7 +616,7 @@ export async function seedStaticData(accessToken, today) {
 
   // Ensure all tab headers exist
   await ensureHeaders(accessToken, 'Opening_Stock',        ['Color', 'Blocks', 'SetupDate', 'Notes'])
-  await ensureHeaders(accessToken, 'Production_Log',       ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost'])
+  await ensureHeaders(accessToken, 'Production_Log',       ['Date', 'Blocks', 'MortarCement', 'ColorCement', 'TotalCement', 'Greet_Ton', 'Powder_Ton', 'Chemical_L', 'YellowKG', 'RedKG', 'YellowFinal', 'RedFinal', 'Reti', 'Plastic_ml', 'MiscExpenses', 'CementCost', 'GreetCost', 'PowderCost', 'ChemicalCost', 'ColorCost', 'PlasticCost', 'RetiCost', 'LabourCost', 'TotalDailyCost', 'BlackKG', 'WhiteKG', 'BlackFinal', 'WhiteFinal'])
   await ensureHeaders(accessToken, 'Production_Variants',  ['Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes'])
   await ensureHeaders(accessToken, 'CRM_Log',              ['Date', 'ClientName', 'Location', 'OrderBrass', 'OrderBlocks', 'Rate', 'DispatchBrass', 'DispatchBlocks', 'Color', 'Status', 'Transport', 'Transporter', 'FreightCharge', 'Notes'])
   await ensureHeaders(accessToken, 'QC_Log',               ['Date', 'Color', 'BrokenBlocks', 'CostPerBlock', 'TotalLoss', 'Notes'])
