@@ -12,7 +12,6 @@ export function createHandler(deps = {}) {
   const permission = deps.permission || requireRoleOrPermission
   const append = deps.appendEvent || appendJournalEvent
   const config = deps.config || readConfig
-  const start = () => Number(deps.startNumber ?? process.env.NGST_START_NUMBER)
   return async function handler(req, res) {
     if (handleOptions(req, res)) return
     setCors(req, res)
@@ -24,8 +23,8 @@ export function createHandler(deps = {}) {
     let writeStarted = false
     const requestId = req.body?.id
     try {
-      const { state, sheetId } = await loadBillingStorage({ read: deps.read, metadata: deps.metadata, startNumber: start() })
-      if (req.method === 'GET') return ok(res, { schemaReady: true, bills: [...state.bills.values()], rejectedAttempts: [...state.attempts.values()].filter(a => !a.result.accepted).length })
+      const { state, sheetId, startNumber, sequence, target } = await loadBillingStorage({ read: deps.read, metadata: deps.metadata, startNumber: deps.startNumber })
+      if (req.method === 'GET') return ok(res, { schemaReady: true, sequence, target, bills: [...state.bills.values()], rejectedAttempts: [...state.attempts.values()].filter(a => !a.result.accepted).length })
       const body = req.body
       if (!body || typeof body !== 'object') return fail(res, 400, 'INVALID_BILL', 'A bill request is required.')
       const { id, billId, action, expectedVersion = '', reason = '' } = body
@@ -44,7 +43,7 @@ export function createHandler(deps = {}) {
       if (body.reconcile === true) return ok(res, { schemaReady: true, requestId: id, requestState: 'not_found', message: 'No committed event was found in the current journal. Keep this ID and retry the same request; absence alone does not resolve an in-flight save.' })
       const companyConfig = action === 'FINALIZE' ? await config() : null
       const event = {
-        ...identity, timestamp: new Date().toISOString(), sequenceStart: start(),
+        ...identity, timestamp: new Date().toISOString(), sequenceStart: startNumber,
         company: companyConfig ? Object.fromEntries(COMPANY_KEYS.filter(key => companyConfig[key] !== undefined).map(key => [key, companyConfig[key]])) : null,
       }
       // Valid intents, including stale conflicts, are durably arbitrated in journal
@@ -52,12 +51,12 @@ export function createHandler(deps = {}) {
       writeStarted = true
       let appendError
       try { await append(event, sheetId) } catch (error) { appendError = error }
-      const persisted = replayJournal(await (deps.read || readSheetRange)(JOURNAL_RANGE), start())
+      const persisted = replayJournal(await (deps.read || readSheetRange)(JOURNAL_RANGE), startNumber)
       const stored = persisted.attempts.get(id)
       if (!stored) throw new Error(`Save could not be confirmed. Keep request ${id}. Check/retry that same ID after the owner checks journal access and request markers; do not delete markers or create a replacement bill.${appendError ? ` ${appendError.message}` : ''}`)
       return respondToAttempt(stored, persisted)
     } catch (error) {
-      fail(res, 503, writeStarted ? 'BILL_SAVE_UNCERTAIN' : 'BILL_STORAGE_SETUP_REQUIRED', writeStarted ? error.message : `Without GST storage is not ready: ${error.message}`, { requestId, requestState: 'unknown', schemaReady: false })
+      fail(res, 503, writeStarted ? 'BILL_SAVE_UNCERTAIN' : 'BILL_STORAGE_SETUP_REQUIRED', writeStarted ? error.message : `Without GST storage is not ready: ${error.message}`, { requestId, requestState: 'unknown', schemaReady: false, ...(error.sequenceDiagnostic ? { sequence: error.sequenceDiagnostic } : {}) })
     }
   }
 }

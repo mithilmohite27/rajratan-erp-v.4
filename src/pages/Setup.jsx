@@ -318,6 +318,13 @@ export default function Setup() {
             <p className="font-bold">{billingSchema.ready ? 'Billing storage is ready.' : 'Billing storage needs attention.'}</p>
             {billingSchema.changes.map(change => <p key={change}>{change}</p>)}
             {billingSchema.issues.map(issue => <p key={issue} className="text-red-700">{issue}</p>)}
+            {billingSchema.target && <p>Spreadsheet checks: frontend/backend {billingSchema.target.frontendMatchesBackend === true ? 'match' : 'comparison unavailable'}; metadata/backend {billingSchema.target.metadataMatchesBackend === true ? 'match' : 'comparison unavailable'}. Config: {billingSchema.target.configRange}, {billingSchema.target.configRead}.</p>}
+            {billingSchema.sequence && <div className="rounded-lg bg-gray-50 p-2 space-y-1">
+              <p>NGST base: {billingSchema.sequence.base ?? 'unresolved'} · Source: {billingSchema.sequence.source || 'none'} · Next unused number: {billingSchema.sequence.nextNumber ?? 'unresolved'}</p>
+              <p>Config!A:B: {billingSchema.sequence.config.status}{billingSchema.sequence.config.rows.length ? ` · row(s) ${billingSchema.sequence.config.rows.join(', ')}` : ''} · value {billingSchema.sequence.config.value ?? 'unavailable'}</p>
+              <p>Legacy environment: {billingSchema.sequence.environment.status} · value {billingSchema.sequence.environment.value ?? 'unavailable'}. Journal base: {billingSchema.sequence.journal.value ?? 'no recorded base'}.</p>
+              <p>{billingSchema.sequence.meaning}</p>
+            </div>}
             <p>{billingSchema.dryRun ? 'Check only — no spreadsheet writes.' : billingSchema.writesPerformed ? 'Confirmed repair completed and rechecked.' : 'No writes performed.'}</p>
           </div>}
         </div>

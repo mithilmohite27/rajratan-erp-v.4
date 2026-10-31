@@ -1,5 +1,7 @@
 # Without GST billing: implementation and rollout
 
+Sequence configuration update: [NGST_SEQUENCE_DIAGNOSTIC.md](./NGST_SEQUENCE_DIAGNOSTIC.md) documents the shared Config/journal resolver. The fixed NGST base can be supplied in Config!A:B; a server environment setting is no longer mandatory, and existing journal bases are preserved.
+
 Storage recovery update: use [WITHOUT_GST_STORAGE_FIX.md](./WITHOUT_GST_STORAGE_FIX.md) for the managed Setup check/repair and pending-request reconciliation workflow. It supersedes the original manual worksheet-creation instruction below. Ordinary page loads remain read-only; explicit setup now provisions a missing journal safely. New event appends use an atomic named-range request marker plus literal appendCells to prevent physical duplicates on concurrent same-ID retries.
 
 ## Audit findings
@@ -50,7 +52,7 @@ Sheets append semantics: [Google Sheets values.append](https://developers.google
 
 1. Back up the existing spreadsheet. Reconcile previously printed NGST bills, including the original manually numbered documents. Determine the next UNUSED integer; choose 1 only if NGST1 has never been issued. Existing paper/PDF bills are not automatically imported.
 2. In a staging copy first, create `Without_GST_Journal` with the exact nine headers above (no pipe characters in individual cells). Freeze the header. Keep every journal row in original order. Do not sort, delete, move or edit event rows. Protect the worksheet against manual edits while retaining write access for the existing backend service account. Snapshot-based history assumes this journal is preserved; it is not a cryptographically signed ledger.
-3. Set server-only `NGST_START_NUMBER` to the reconciled next integer, alongside the existing service-account credentials, `SPREADSHEET_ID`, OAuth audience and `OWNER_EMAIL`. The frontend must never receive service-account secrets. Use the SAME base for the lifetime of this journal: stored events reject a later configuration change rather than silently renumbering bills. Never clear/recreate a populated journal or lower the base.
+3. Put `NGST_START_NUMBER` in Config column A and the reconciled initial base in column B. A legacy server environment value is supported as a fallback, and must agree if also present. Keep the existing service-account credentials, `SPREADSHEET_ID`, OAuth audience and `OWNER_EMAIL` configured. The frontend must never receive service-account secrets. Use the SAME base for the lifetime of this journal: stored events reject a conflicting later configuration change rather than silently renumbering bills. Never clear/recreate a populated journal or lower the base.
 4. Test using the staging spreadsheet, not production. Backend credentials need access to this new tab. Vite alone does not run `/api` handlers; use the existing full-stack hosting/local API workflow. No new API request is sent to production during automated tests.
 5. After explicit deployment authorization, create the protected production tab and configure the reconciled production base. Do not copy test events into production. Preserve any already issued paper/PDF records as the external historical register.
 

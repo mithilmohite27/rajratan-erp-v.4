@@ -8,7 +8,7 @@ import { fixture } from './fixtures/without-gst.mjs'
 import { mockBillingStore } from './fixtures/without-gst-store.mjs'
 
 test('actual Setup/auth/Sheets transport: dry-run, confirmed migration, literal writes and guarded retries', async () => {
-  const store = mockBillingStore({ missingJournal: true })
+  let store = mockBillingStore({ missingJournal: true })
   const values = {
     SPREADSHEET_ID: 'ISOLATED_TEST_SHEET', VITE_SHEET_ID: 'ISOLATED_TEST_SHEET',
     GOOGLE_SERVICE_ACCOUNT_EMAIL: 'service@fixture.invalid',
@@ -23,7 +23,7 @@ test('actual Setup/auth/Sheets transport: dry-run, confirmed migration, literal 
   const response = (data, status = 200) => ({ ok: status < 400, status, json: async () => data, text: async () => JSON.stringify(data) })
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(input), pathname = decodeURIComponent(url.pathname)
-    requests.push({ pathname, method: init.method || 'GET' })
+    requests.push({ pathname, method: init.method || 'GET', valueRenderOption: url.searchParams.get('valueRenderOption') })
     if (url.origin === 'https://oauth2.googleapis.com' && pathname === '/tokeninfo') return response({ email, aud: values.GOOGLE_CLIENT_ID })
     if (url.origin === 'https://oauth2.googleapis.com' && pathname === '/token') return response({ access_token: 'isolated-service-token' })
     assert.equal(url.origin, 'https://sheets.googleapis.com', 'No unexpected network request is allowed')
@@ -64,6 +64,25 @@ test('actual Setup/auth/Sheets transport: dry-run, confirmed migration, literal 
     assert.equal((await send(setupHandler, { ...check, dryRun: false })).status, 403)
     assert.equal(requests.length, requestCount + 1, 'Unauthorized setup must stop after token verification')
     assert.equal(store.calls.length, 2)
+    // Reproduce the reported Config-only deployment through the real handlers,
+    // token/metadata/value transport, without a server environment base.
+    email = values.OWNER_EMAIL
+    delete process.env.NGST_START_NUMBER
+    store = mockBillingStore()
+    const read = store.read
+    store.read = async range => range === 'Config!A:B' ? [...Array.from({ length: 21 }, () => []), ['NGST_START_NUMBER', 1]] : read(range)
+    const configCheck = await send(setupHandler, check)
+    assert.equal(configCheck.ready, true); assert.equal(configCheck.sequence.base, 1)
+    assert.deepEqual(configCheck.sequence.config.rows, [22]); assert.equal(configCheck.sequence.environment.status, 'missing')
+    assert.equal(configCheck.sequence.source, 'Config'); assert.equal(store.calls.length, 0)
+    const configPending = { ...request, id: newId(), billId: newId() }
+    assert.equal((await send(billHandler, configPending)).record.number, 'NGST1')
+    const pendingCheck = await send(billHandler, { ...configPending, reconcile: true })
+    assert.equal(pendingCheck.requestState, 'committed'); assert.equal(pendingCheck.requestId, configPending.id)
+    const loaded = await send(billHandler)
+    assert.equal(loaded.sequence.base, 1); assert.equal(loaded.sequence.nextNumber, 2)
+    assert.equal(store.rows.length, 2); assert.equal(store.calls.length, 1)
+    assert.ok(requests.some(req => req.pathname.endsWith('/values/Config!A:B') && req.valueRenderOption === 'UNFORMATTED_VALUE'))
   } finally {
     globalThis.fetch = originalFetch
     for (const [key, value] of Object.entries(before)) {

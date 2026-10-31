@@ -1,5 +1,7 @@
 # Without GST storage error: cause and safe recovery
 
+Sequence-source update: [NGST_SEQUENCE_DIAGNOSTIC.md](./NGST_SEQUENCE_DIAGNOSTIC.md) explains the Config-only validation fix. `Config!A:B` is now consulted for NGST_START_NUMBER; the environment variable is a legacy fallback, and any populated journal's recorded base is preserved. Do not increment either setting after saving bills.
+
 ## Confirmed repository findings
 
 `api/without-gst-bills.js` read `Without_GST_Journal!A:I` for both GET (load) and POST (save). That journal was documented as a manual prerequisite but was not registered in `seedStaticDataIfEmpty()` or exposed through a Setup migration. Existing `ensureHeadersIfEmpty()` writes header values; it does not create missing worksheets. Consequently, running the previous Setup seeder did not provision billing storage.
@@ -26,7 +28,7 @@ The batch uses [Google's atomic batch semantics](https://developers.google.com/w
 ## Production recovery — explicit operator action required
 
 1. Back up the existing spreadsheet. Keep the affected browser's local working draft and pending ID. Do not clear browser storage or create a replacement bill.
-2. Verify the deployed `SPREADSHEET_ID`, service-account access, and frontend `VITE_SHEET_ID` refer to the intended existing spreadsheet. Restore the ORIGINAL `NGST_START_NUMBER` for a populated journal. For a genuinely new journal, reconcile previously printed bills and configure the next unused number; never assume 1.
+2. Verify the deployed `SPREADSHEET_ID`, service-account access, and frontend `VITE_SHEET_ID` refer to the intended existing spreadsheet. Keep the ORIGINAL `NGST_START_NUMBER` base for a populated journal. For a genuinely new journal, reconcile previously printed bills and configure the initial base in Config column B beside the NGST_START_NUMBER key in column A; never assume 1. A legacy server environment setting is optional but must agree if present.
 3. Use the new code in a staging copy first. No deployment was performed by this fix. After the approved release, sign in as an owner/Setup-authorized operator and run **Setup → Advanced Setup Tools → Without GST storage → Check Without GST storage**.
 4. Resolve reported configuration/name/header issues. If the check only proposes creating a missing journal or initializing an empty one, choose **Repair missing billing storage** and explicitly confirm the target and backup. A populated/mismatched journal requires inspection and a separate approved correction; do not use forced seeding or manual deletion.
 5. Return to the ORIGINAL affected browser and choose **Check pending save**. A matching committed request resolves without another append. A stored rejected event unlocks the working draft while retaining its edits. If not found, choose **Retry pending save** using the displayed original ID; one event/bill is created, with no extra number reservation. Unknown/incompatible results remain pending for owner review.
