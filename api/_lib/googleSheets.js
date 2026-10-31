@@ -213,12 +213,12 @@ export async function appendSheetRow(range, values) {
   return res.json()
 }
 
-export async function appendSheetRows(range, rows) {
+export async function appendSheetRows(range, rows, { raw = false } = {}) {
   if (!rows.length) return { skipped: true }
 
   const spreadsheetId = requiredEnv('SPREADSHEET_ID')
   const token = await getServiceAccountAccessToken()
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=${raw ? 'RAW' : 'USER_ENTERED'}&insertDataOption=INSERT_ROWS`
   const res = await fetch(url, {
     method: 'POST',
     headers: {

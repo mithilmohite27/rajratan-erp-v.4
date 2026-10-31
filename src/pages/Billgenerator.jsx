@@ -3,6 +3,7 @@ import { useApp } from '../App.jsx'
 import { loadCRM } from '../lib/sheets.js'
 import { today } from '../lib/formulas.js'
 import { DEFAULT_CONFIG } from '../lib/config.js'
+import WithoutGstBilling from '../components/WithoutGstBilling.jsx'
 
 // ── Company Details (fixed) ───────────────────
 const COMPANY = {
@@ -717,97 +718,9 @@ function ChallanPreview({ data, config }) {
   )
 }
 
-// A separate document layout: no tax columns, tax summary, or GST identifiers.
-function WithoutGstPreview({ data, config }) {
-  const company = getCompany(config)
-  const qty = parseFloat(data.qty) || 0
-  const rate = parseFloat(data.rate) || 0
-  const total = parseFloat(fmt2(qty * rate))
-  const cell = { border: '1px solid #000', padding: '6px', verticalAlign: 'top' }
-
-  return (
-    <div className="bill-sheet" style={{ fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#000', background: '#fff', width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm', boxSizing: 'border-box' }}>
-      <h2 style={{ textAlign: 'center', fontSize: '15px', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '6px' }}>BILL WITHOUT GST</h2>
-      <p style={{ textAlign: 'right', marginBottom: '6px' }}>Original for Customer</p>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <tbody>
-          <tr>
-            <td style={{ ...cell, width: '60%' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <img src="/assets/rajratan-erp-icon-light.png" alt="Rajratan ERP" style={{ width: '85px', height: '85px', objectFit: 'contain' }} />
-                <div>
-                  <strong style={{ fontSize: '13px' }}>{company.name}</strong>
-                  <div style={{ whiteSpace: 'pre-line', lineHeight: '1.5' }}>{company.address}</div>
-                  <div>Phone: {company.phone}</div>
-                  {company.email && <div>Email: {company.email}</div>}
-                </div>
-              </div>
-            </td>
-            <td style={cell}>
-              <div>Bill No.: <strong>{data.billNo || 'NGST1'}</strong></div>
-              <div style={{ marginTop: '10px' }}>Date: <strong>{data.date ? new Date(data.date).toLocaleDateString('en-GB') : ''}</strong></div>
-            </td>
-          </tr>
-          <tr>
-            <td colSpan={2} style={cell}>
-              <div style={{ marginBottom: '4px' }}>Bill To</div>
-              <strong>{data.clientName || '—'}</strong>
-              <div style={{ whiteSpace: 'pre-line', lineHeight: '1.5' }}>{data.clientAddress}</div>
-              {data.clientPhone && <div>Phone: {data.clientPhone}</div>}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#e8e8e8' }}>
-            {['#', 'Item & Description', 'Qty.', 'Rate/Item', 'Unit', 'Amount'].map(label => <th key={label} style={{ ...cell, textAlign: 'left' }}>{label}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={cell}>1</td>
-            <td style={cell}>{data.itemDesc || ITEM_DESC}</td>
-            <td style={cell}>{fmt2(qty)}</td>
-            <td style={cell}>{fmt2(rate)}</td>
-            <td style={cell}>{data.per || '-'}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{fmt2(total)}</td>
-          </tr>
-          <tr><td colSpan={6} style={{ ...cell, height: '48px' }} /></tr>
-          <tr style={{ fontWeight: 'bold' }}>
-            <td colSpan={5} style={{ ...cell, textAlign: 'right' }}>Total</td>
-            <td style={{ ...cell, textAlign: 'right' }}>₹{fmt(total)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div style={cell}>Amount in Words: <strong>{numToWords(total)}</strong></div>
-      <div style={cell}>GST not charged.</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <tbody>
-          <tr>
-            <td style={{ ...cell, width: '60%' }}>
-              <strong>Bank Details</strong>
-              <div>{company.bank}</div>
-              <div>Account Name: {company.accName}</div>
-              <div>Account No.: {company.account}</div>
-              <div>IFSC: {company.ifsc}</div>
-              {company.paymentTerms && <div style={{ marginTop: '8px' }}>Payment Terms: {company.paymentTerms}</div>}
-              {company.footerNote && <div style={{ marginTop: '8px' }}>{company.footerNote}</div>}
-            </td>
-            <td style={{ ...cell, textAlign: 'right' }}>
-              <div>For {company.name}</div>
-              <div style={{ marginTop: '60px' }}>Authorised Signatory</div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 // ── Main Component ────────────────────────────
 export default function BillGenerator() {
-  const { accessToken, config } = useApp()
+  const { accessToken, config, user } = useApp()
   const invoicePrefix = cfg(config, 'INVOICE_PREFIX') || 'INV'
   const challanPrefix = cfg(config, 'CHALLAN_PREFIX') || 'CHN'
   const defaultGstRate = getGstRate(config)
@@ -819,10 +732,9 @@ export default function BillGenerator() {
   // ── CRM sync ────────────────────────────────
   const [clients, setClients] = useState([])
   const [crmLoading, setCrmLoading] = useState(false)
-  const [gstSelectedClient, setGstSelectedClient] = useState('')
-  const [withoutGstSelectedClient, setWithoutGstSelectedClient] = useState('')
+  const [selectedClient, setSelectedClient] = useState('')
 
-  const [gstForm, setGstForm] = useState({
+  const [form, setForm] = useState({
     date: today(),
     placeOfSupply: 'Gujarat',
     clientName: '',
@@ -840,21 +752,13 @@ export default function BillGenerator() {
     vehicleNo: '',
   })
 
-  const [withoutGstForm, setWithoutGstForm] = useState({
-    date: today(), clientName: '', clientAddress: '', clientPhone: '',
-    itemDesc: ITEM_DESC, qty: '', rate: '', per: 'Brass', billNo: 'NGST1',
-  })
   const isWithoutGst = billType === 'without-gst'
-  const form = isWithoutGst ? withoutGstForm : gstForm
-  const setForm = isWithoutGst ? setWithoutGstForm : setGstForm
-  const selectedClient = isWithoutGst ? withoutGstSelectedClient : gstSelectedClient
-  const setSelectedClient = isWithoutGst ? setWithoutGstSelectedClient : setGstSelectedClient
-  const documentTitle = isWithoutGst ? 'Without GST Bill' : billType === 'invoice' ? 'Tax Invoice' : 'Delivery Challan'
-  const numberField = isWithoutGst ? 'billNo' : billType === 'invoice' ? 'invoiceNo' : 'challanNo'
-  const numberPlaceholder = isWithoutGst ? 'NGST1' : billType === 'invoice' ? `${invoicePrefix}1` : `${challanPrefix}1`
+  const documentTitle = billType === 'invoice' ? 'Tax Invoice' : 'Delivery Challan'
+  const numberField = billType === 'invoice' ? 'invoiceNo' : 'challanNo'
+  const numberPlaceholder = billType === 'invoice' ? `${invoicePrefix}1` : `${challanPrefix}1`
 
   useEffect(() => {
-    setGstForm(p => ({
+    setForm(p => ({
       ...p,
       invoiceNo: !p.invoiceNo || p.invoiceNo === 'INV1' ? `${invoicePrefix}1` : p.invoiceNo,
       challanNo: !p.challanNo || p.challanNo === 'CHN1' ? `${challanPrefix}1` : p.challanNo,
@@ -970,7 +874,7 @@ export default function BillGenerator() {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className={`${isWithoutGst ? 'max-w-5xl' : 'max-w-lg'} mx-auto`}>
       {/* Print styles injected globally */}
       <style>{`
         @media print {
@@ -1017,6 +921,9 @@ export default function BillGenerator() {
         ))}
       </div>
 
+      <div hidden={!isWithoutGst}><WithoutGstBilling active={isWithoutGst} clients={clients} config={config} accessToken={accessToken} user={user} /></div>
+
+      {!isWithoutGst && <>
       {/* Preview toggle */}
       <div className="flex gap-2 px-4 pt-3">
         {[
@@ -1045,7 +952,6 @@ export default function BillGenerator() {
               {documentTitle} — Fill the details below
             </p>
             <p className="text-xs text-orange-600">Switch to Preview tab to see the bill, then click Print PDF.</p>
-            {isWithoutGst && <p className="text-xs text-orange-700 mt-1">Separate bill number and draft. GST is not added to this bill.</p>}
           </div>
 
           {/* CRM Client Picker */}
@@ -1089,7 +995,7 @@ export default function BillGenerator() {
 
             <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">
-                {isWithoutGst ? 'Bill No. (Without GST)' : billType === 'invoice' ? 'Invoice No.' : 'Challan No.'}
+                {billType === 'invoice' ? 'Invoice No.' : 'Challan No.'}
               </label>
 
               <input
@@ -1117,7 +1023,7 @@ export default function BillGenerator() {
               />
             </div>
 
-            {!isWithoutGst && <div>
+            <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">Place of Supply</label>
 
               <select
@@ -1135,7 +1041,7 @@ export default function BillGenerator() {
               <p className="text-[11px] text-gray-400 mt-1">
                 Gujarat = CGST + SGST · Other states = IGST
               </p>
-            </div>}
+            </div>
           </div>
 
           {/* Client Info */}
@@ -1194,7 +1100,7 @@ export default function BillGenerator() {
               </>
             )}
 
-            {(billType === 'challan' || isWithoutGst) && (
+            {billType === 'challan' && (
               <div>
                 <label className="block text-xs text-gray-500 font-semibold mb-1">Phone</label>
 
@@ -1225,7 +1131,7 @@ export default function BillGenerator() {
               />
             </div>
 
-            {!isWithoutGst && <div>
+            <div>
               <label className="block text-xs text-gray-500 font-semibold mb-1">HSN/SAC Code</label>
 
               <input
@@ -1235,7 +1141,7 @@ export default function BillGenerator() {
                 onChange={e => setForm(p => ({ ...p, hsn: e.target.value }))}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none bg-white"
               />
-            </div>}
+            </div>
 
             {billType === 'challan' && (
               <>
@@ -1297,11 +1203,11 @@ export default function BillGenerator() {
             {parseFloat(form.qty) > 0 && parseFloat(form.rate) > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs">
                 <div className="flex justify-between">
-                  <span>{isWithoutGst ? 'Amount:' : 'Taxable:'}</span>
+                  <span>Taxable:</span>
                   <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate))}</span>
                 </div>
 
-                {!isWithoutGst && (isInterStateSupply(form.placeOfSupply) ? (
+                {isInterStateSupply(form.placeOfSupply) ? (
                   <div className="flex justify-between">
                     <span>IGST {fmt2(defaultGstRate)}%:</span>
                     <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * (defaultGstRate / 100))}</span>
@@ -1318,11 +1224,11 @@ export default function BillGenerator() {
                       <span className="font-bold">₹{fmt2(parseFloat(form.qty) * parseFloat(form.rate) * (defaultHalfGstRate / 100))}</span>
                     </div>
                   </>
-                ))}
+                )}
 
                 <div className="flex justify-between border-t border-green-200 mt-1 pt-1 font-bold text-green-700">
                   <span>Total:</span>
-                  <span>₹{fmt(isWithoutGst ? parseFloat(form.qty) * parseFloat(form.rate) : Math.round(parseFloat(form.qty) * parseFloat(form.rate) * (1 + defaultGstRate / 100)))}</span>
+                  <span>₹{fmt(Math.round(parseFloat(form.qty) * parseFloat(form.rate) * (1 + defaultGstRate / 100)))}</span>
                 </div>
               </div>
             )}
@@ -1352,9 +1258,7 @@ export default function BillGenerator() {
           </p>
 
           <div ref={printRef} className="bill-preview-frame">
-            {isWithoutGst
-              ? <WithoutGstPreview data={form} config={config} />
-              : billType === 'invoice'
+            {billType === 'invoice'
               ? <TaxInvoicePreview data={form} config={config} />
               : <ChallanPreview data={form} config={config} />
             }
@@ -1368,6 +1272,7 @@ export default function BillGenerator() {
           </button>
         </div>
       )}
+      </>}
     </div>
   )
 }
