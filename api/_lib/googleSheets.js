@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { JOURNAL_HEADERS, JOURNAL_TAB } from '../../src/lib/withoutGst.js'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
@@ -148,10 +149,10 @@ export async function getServiceAccountAccessToken() {
   return json.access_token
 }
 
-export async function readSheetRange(range) {
+export async function readSheetRange(range, { valueRenderOption } = {}) {
   const spreadsheetId = requiredEnv('SPREADSHEET_ID')
   const token = await getServiceAccountAccessToken()
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}${valueRenderOption ? `?valueRenderOption=${encodeURIComponent(valueRenderOption)}` : ''}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -169,6 +170,33 @@ export async function readSheetRange(range) {
 
   const json = await res.json()
   return json.values || []
+}
+
+export async function readSpreadsheetMetadata() {
+  const spreadsheetId = requiredEnv('SPREADSHEET_ID')
+  const token = await getServiceAccountAccessToken()
+  const fields = 'spreadsheetId,properties(title),sheets(properties(sheetId,title,gridProperties))'
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=${encodeURIComponent(fields)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Cannot inspect the configured spreadsheet (${res.status}). Check SPREADSHEET_ID and service-account access.`)
+  return res.json()
+}
+
+export async function batchUpdateSpreadsheet(requests) {
+  const spreadsheetId = requiredEnv('SPREADSHEET_ID')
+  const token = await getServiceAccountAccessToken()
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests }),
+  })
+  if (!res.ok) {
+    const error = new Error(`Sheets schema/journal operation failed (${res.status}). Recheck schema or reconcile the same request ID before retrying.`)
+    error.status = res.status
+    throw error
+  }
+  return res.json()
 }
 
 export async function updateSheetRange(range, values) {
@@ -519,6 +547,7 @@ export async function seedStaticDataIfEmpty() {
   }
 
   const headerSeeds = [
+    [JOURNAL_TAB, JOURNAL_HEADERS],
     ['Opening_Stock', ['Color', 'Blocks', 'SetupDate', 'Notes']],
     ['Production_Log', PRODUCTION_LOG_HEADERS],
     ['Production_Variants', ['Date', 'Color', 'Blocks', 'Brass', 'BatchID', 'Notes']],
@@ -531,6 +560,13 @@ export async function seedStaticDataIfEmpty() {
   ]
 
   for (const [tab, headers] of headerSeeds) {
+    if (tab === JOURNAL_TAB) {
+      const { reconcileWithoutGstSchema } = await import('./withoutGstSchema.js')
+      const billing = await reconcileWithoutGstSchema({ dryRun: false, validateSequence: false })
+      if (!billing.ready) throw new Error(billing.issues.join(' '))
+      if (billing.writesPerformed) seeded.push(tab)
+      continue
+    }
     if (await ensureHeadersIfEmpty(tab, headers)) seeded.push(tab)
   }
 

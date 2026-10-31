@@ -8,6 +8,8 @@ export async function billRequest(token, body) {
   if (!res.ok || !result.ok) {
     const error = new Error(result.message || `Bill request failed (${res.status}).`)
     error.status = res.status
+    error.code = result.code
+    error.details = result.details
     throw error
   }
   return result

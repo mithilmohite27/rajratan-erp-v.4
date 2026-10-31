@@ -27,6 +27,7 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
   const [saved, setSaved] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [schemaReady, setSchemaReady] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -65,9 +66,9 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     setLoading(true)
     billRequest(accessToken).then(result => {
       if (cancelled) return
-      setSaved(result.bills); setLoaded(true)
+      setSaved(result.bills); setLoaded(true); setSchemaReady(result.schemaReady === true); setError('')
       if (result.rejectedAttempts) setNotice(`${result.rejectedAttempts} stale or rejected save attempts remain in the audit journal.`)
-    }).catch(e => { if (!cancelled) { setError(e.message); setLoaded(true) } }).finally(() => { if (!cancelled) setLoading(false) })
+    }).catch(e => { if (!cancelled) { setError(e.message); setLoaded(true); setSchemaReady(false) } }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [active, loaded, accessToken])
 
@@ -88,28 +89,46 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     setBill(next); setRecord(duplicate ? null : nextRecord); setBillId(duplicate || !nextRecord ? newId() : nextRecord.id)
     setPreview(false); setSettling(false); setHistorical(null); setReason(''); setError(''); setNotice('')
   }
-  const save = async (action, correctionReason = reason, retry = false) => {
+  const save = async (action, correctionReason = reason, retry = false, checkOnly = false) => {
     if (busy.current) return
     let request = retry ? pending : null
+    busy.current = true; setSaving(true); setError(''); setNotice('')
     try {
       if (!request) {
         if (pending) throw new Error('Retry the pending request first.')
         const normalized = normalizeBill(bill, action === 'FINALIZE' || action === 'SETTLE')
         if (['REVISE', 'SETTLE'].includes(action) && !correctionReason.trim()) throw new Error('Enter a reason for this correction or settlement update.')
         if (action === 'FINALIZE' && !window.confirm('Issue this bill? The issued snapshot will be preserved. Later corrections require a revision.')) return
+        const preflight = await billRequest(accessToken)
+        if (preflight.schemaReady !== true) throw new Error('Storage validation could not be confirmed. Ask the owner to check Without GST storage in Setup.')
+        setSchemaReady(true)
         request = { id: newId(), billId, expectedVersion: record?.version || '', action, reason: correctionReason, bill: normalized }
         // Persist the retry identity before sending; losing it could duplicate a new bill.
         localStorage.setItem(storageKey, JSON.stringify({ schema: 1, bill, record, billId, pending: request }))
         setPending(request)
       }
-      busy.current = true; setSaving(true); setError(''); setNotice('')
-      const result = await billRequest(accessToken, request)
+      let result
+      if (retry) {
+        result = await billRequest(accessToken, { ...request, reconcile: true })
+        if (result.schemaReady === true) setSchemaReady(true)
+        if (result.requestState === 'not_found') {
+          if (checkOnly) { setNotice(result.message); return }
+          result = await billRequest(accessToken, request)
+        }
+      } else result = await billRequest(accessToken, request)
+      if (result.requestId !== request.id || result.authoritative !== true || result.requestState !== 'committed' || !result.record) throw new Error('The server could not confirm this request. Keep the pending ID and check it again; do not create a replacement bill.')
+      localStorage.setItem(storageKey, JSON.stringify({ schema: 1, bill: result.record.bill, record: result.record, billId, pending: null }))
       setRecord(result.record); setBill(result.record.bill); setPending(null); setSettling(false); setReason(''); setHistorical(null)
+      setSchemaReady(true)
       setSaved(previous => [result.record, ...previous.filter(row => row.id !== result.record.id)])
       setNotice(`${result.record.number} ${result.record.status === 'finalized' ? 'saved as issued' : 'draft saved'}.`)
     } catch (e) {
       setError(e.message)
-      if (e.status === 409) { setPending(null); setLoaded(false); setNotice('Your working changes are retained. Reload the saved bill to resolve the conflict.') }
+      if (e.details?.schemaReady === false) setSchemaReady(false)
+      if (request && e.details?.requestId === request.id && e.details?.authoritative === true && e.details?.requestState === 'rejected') {
+        localStorage.setItem(storageKey, JSON.stringify({ schema: 1, bill, record, billId, pending: null }))
+        setPending(null); setLoaded(false); setNotice('The journal confirms this request was rejected without changing the bill. Your working changes are retained; reload the saved bill to resolve the conflict.')
+      }
     } finally { busy.current = false; setSaving(false) }
   }
   const showPreview = () => {
@@ -152,7 +171,8 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {storageError && <p role="alert" className="text-xs text-red-700">{storageError}</p>}
     {notice && <p role="status" className="rounded-xl bg-teal-50 p-3 text-sm text-teal-800">{notice}</p>}
-    {pending && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">A save is pending. Keep the same request ID to resolve an uncertain response.<button type="button" disabled={saving} onClick={() => save('', '', true)} className={`${buttonClass} ml-2`}>{saving ? 'Saving…' : 'Retry pending save'}</button></div>}
+    {!schemaReady && <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-800"><p>{loading ? 'Checking required billing worksheets and NGST configuration…' : 'Saving is blocked until billing storage is ready. Ask the owner to use Setup → Without GST storage → Check, then explicitly repair if needed.'} <a className="underline" href="/setup">Open Setup</a></p><button type="button" disabled={loading || saving} onClick={() => setLoaded(false)} className={`${buttonClass} mt-2`}>Recheck storage</button></div>}
+    {pending && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">A save is pending. Its original request ID is preserved: <code className="break-all">{pending.id}</code><p className="mt-1 text-xs">Check whether it committed before retrying. Schema errors or an absent event will not clear this request.</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={saving} onClick={() => save('', '', true, true)} className={buttonClass}>Check pending save</button><button type="button" disabled={saving} onClick={() => save('', '', true)} className={buttonClass}>{saving ? 'Checking / saving…' : 'Retry pending save'}</button></div></div>}
     <div className="flex flex-wrap items-center justify-between gap-2"><div><strong>{record?.number || 'New Without GST Bill'}</strong><p className="text-xs text-gray-500">{issued ? `Issued · revision ${record.revision}` : 'Draft'}{dirty && ' · unsaved changes'}</p></div><button type="button" disabled={saving || Boolean(pending)} onClick={() => replaceWorking(null)} className={buttonClass}>New bill</button></div>
     {preview ? <>
       <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setPreview(false); setHistorical(null) }} className={buttonClass}>Back to bill</button><button type="button" onClick={print} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white">Print / Save as PDF</button></div>
@@ -184,7 +204,7 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
         </section>
         <section className="rounded-2xl bg-white p-4"><label className="block text-xs font-semibold text-gray-500">Bill notes<textarea rows={3} className={`${inputClass} mt-1`} value={bill.notes} onChange={e => change({ notes: e.target.value })} /></label></section>
       </fieldset>
-      {issued && !settling && <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2"><p className="text-xs text-gray-600">This issued snapshot is preserved. Start a revision to change customer or deliveries.</p><Field label="Correction reason" value={reason} onChange={setReason} /><div className="flex flex-wrap gap-2"><button type="button" disabled={disabled} onClick={() => save('REVISE')} className={buttonClass}>Start revision</button><button type="button" disabled={disabled} onClick={() => { setSettling(true); setReason('') }} className={buttonClass}>Record / correct payments</button></div></div>}
+      {issued && !settling && <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2"><p className="text-xs text-gray-600">This issued snapshot is preserved. Start a revision to change customer or deliveries.</p><Field label="Correction reason" value={reason} onChange={setReason} /><div className="flex flex-wrap gap-2"><button type="button" disabled={disabled || !schemaReady} onClick={() => save('REVISE')} className={buttonClass}>Start revision</button><button type="button" disabled={disabled} onClick={() => { setSettling(true); setReason('') }} className={buttonClass}>Record / correct payments</button></div></div>}
       <fieldset disabled={disabled || (issued && !settling)} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 space-y-4">
         <legend className="px-1 text-sm font-bold text-gray-700">Payments & Adjustments (optional)</legend>
         <p className="text-xs text-gray-500">Allocate each payment once. Reference numbers identify existing payments. Freight is deducted only when explicitly checked. No automatic ledger posting occurs.</p>
@@ -193,10 +213,10 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
         {bill.freight.map((row, index) => <div key={row.id} className="space-y-3 rounded-xl border border-gray-100 p-3"><div className="flex items-center justify-between"><strong className="text-xs">Freight {index + 1}</strong><button type="button" onClick={() => removeRow('freight', row.id)} className={buttonClass}>Remove</button></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><Field label="Freight date" type="date" value={row.date} onChange={date => updateRow('freight', row.id, { date })} /><Field label="Freight amount (₹)" type="number" min="0.01" step="0.01" value={row.amount} onChange={value => updateRow('freight', row.id, { amount: value })} /><Field label="Description" value={row.description} onChange={description => updateRow('freight', row.id, { description })} /><Field label="Paid by" value={row.paidBy} onChange={paidBy => updateRow('freight', row.id, { paidBy })} /></div><label className="flex items-start gap-2 text-xs font-semibold text-gray-700"><input type="checkbox" checked={row.deductible} onChange={e => updateRow('freight', row.id, { deductible: e.target.checked })} />Deduct this freight from the bill balance</label></div>)}
         <button type="button" onClick={() => change({ freight: [...bill.freight, { id: newId(), date: today(), amount: '', description: '', paidBy: '', deductible: false }] })} className={buttonClass}>+ Add freight adjustment</button>
       </fieldset>
-      {settling && <div className="space-y-2"><Field label="Settlement / correction reason" value={reason} onChange={setReason} /><button type="button" disabled={disabled} onClick={() => save('SETTLE')} className={buttonClass}>Save settlement update</button><button type="button" disabled={disabled} onClick={() => { if (!dirty || window.confirm('Discard unsaved payment changes?')) { setBill(record.bill); setSettling(false) } }} className={`${buttonClass} ml-2`}>Cancel</button></div>}
+      {settling && <div className="space-y-2"><Field label="Settlement / correction reason" value={reason} onChange={setReason} /><button type="button" disabled={disabled || !schemaReady} onClick={() => save('SETTLE')} className={buttonClass}>Save settlement update</button><button type="button" disabled={disabled} onClick={() => { if (!dirty || window.confirm('Discard unsaved payment changes?')) { setBill(record.bill); setSettling(false) } }} className={`${buttonClass} ml-2`}>Cancel</button></div>}
       {validation && <p role="alert" className="text-xs text-red-700">{validation}</p>}
       <section className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-2 text-sm"><div className="flex justify-between gap-3"><span>Deliveries</span><strong>{summary.count}</strong></div><div className="flex justify-between gap-3"><span>Quantity by unit</span><strong className="text-right">{quantitySummary(summary.quantities)}</strong></div>{[['Grand total', summary.total], ['Payments allocated', summary.payments], ['Deductible freight', summary.freight], ['Outstanding balance', summary.outstanding]].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><span>{label}</span><strong>{money(value)}</strong></div>)}{summary.credit > 0 && <div className="flex justify-between gap-3 text-orange-700"><span>Credit / overpayment</span><strong>{money(summary.credit)}</strong></div>}{validation && <p className="text-xs text-red-700">Totals are provisional until the validation errors are fixed.</p>}</section>
-      <div className="flex flex-wrap gap-2"><button type="button" disabled={disabled || settling} onClick={showPreview} className={buttonClass}>Preview bill</button>{!issued && <><button type="button" disabled={disabled} onClick={() => save('SAVE')} className={buttonClass}>{saving ? 'Saving…' : 'Save draft'}</button><button type="button" disabled={disabled} onClick={() => save('FINALIZE')} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">Finalize bill</button></>}</div>
+      <div className="flex flex-wrap gap-2"><button type="button" disabled={disabled || settling} onClick={showPreview} className={buttonClass}>Preview bill</button>{!issued && <><button type="button" disabled={disabled || !schemaReady} onClick={() => save('SAVE')} className={buttonClass}>{saving ? 'Saving…' : 'Save draft'}</button><button type="button" disabled={disabled || !schemaReady} onClick={() => save('FINALIZE')} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">Finalize bill</button></>}</div>
     </>}
     {record?.history && <details className="rounded-xl border border-gray-200 bg-white p-3"><summary className="cursor-pointer text-sm font-bold">Revision & settlement history ({record.history.length})</summary>{record.history.map(entry => <div key={entry.version} className="border-t border-gray-100 py-2 text-xs"><strong>{entry.action} · {entry.status} · Revision {entry.revision}</strong><p>{entry.actor} · {entry.timestamp}</p>{entry.reason && <p>{entry.reason}</p>}<button type="button" disabled={saving || Boolean(pending)} onClick={() => { setHistorical(entry); setPreview(true) }} className={`${buttonClass} mt-1`}>View snapshot</button></div>)}</details>}
     <section className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3"><div className="flex items-center justify-between"><h2 className="text-sm font-bold">Saved Without GST Bills</h2><button type="button" disabled={loading} onClick={() => setLoaded(false)} className={buttonClass}>{loading ? 'Loading…' : 'Refresh'}</button></div><Field label="Search client or bill number" value={search} onChange={setSearch} /><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><Field label="From bill date" type="date" value={from} onChange={setFrom} /><Field label="To bill date" type="date" value={to} onChange={setTo} /></div><label className="block text-xs font-semibold text-gray-500">Payment status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${inputClass} mt-1`}><option value="">All payment statuses</option>{['Unpaid', 'Partial', 'Paid', 'Credit'].map(value => <option key={value}>{value}</option>)}</select></label>{filtered.map(row => <div key={row.id} className="rounded-xl border border-gray-100 p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><strong>{row.number} · {row.bill.clientName || 'Unnamed client'}</strong><span className="text-xs text-gray-500">{row.status} · {paymentStatus(row.bill)}</span></div><p className="text-xs text-gray-500">{row.bill.date} · Outstanding {money(totals(row.bill).outstanding)}{totals(row.bill).credit > 0 && ` · Credit ${money(totals(row.bill).credit)}`}</p><div className="mt-2 flex gap-2"><button type="button" disabled={saving || Boolean(pending)} onClick={() => replaceWorking(row)} className={buttonClass}>Open</button><button type="button" disabled={saving || Boolean(pending)} onClick={() => replaceWorking(row, true)} className={buttonClass}>Duplicate as new bill</button></div></div>)}{!loading && !filtered.length && <p className="text-xs text-gray-500">No saved bills match these filters.</p>}</section>

@@ -1,5 +1,7 @@
 # Without GST billing: implementation and rollout
 
+Storage recovery update: use [WITHOUT_GST_STORAGE_FIX.md](./WITHOUT_GST_STORAGE_FIX.md) for the managed Setup check/repair and pending-request reconciliation workflow. It supersedes the original manual worksheet-creation instruction below. Ordinary page loads remain read-only; explicit setup now provisions a missing journal safely. New event appends use an atomic named-range request marker plus literal appendCells to prevent physical duplicates on concurrent same-ID retries.
+
 ## Audit findings
 
 - The application is React 18 + Vite, with Tailwind and Vercel-style Node API handlers. `src/pages/Billgenerator.jsx` contains the existing GST invoice and delivery-challan forms/templates. Those calculations, template bodies, configurable prefixes, and numbering inputs are unchanged.

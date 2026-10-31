@@ -35,7 +35,7 @@ async function runSetupAction(action, rows, accessToken, { force = false, confir
       const details = payload.details || {}
       throw new Error(`Invalid import rows. ${details.invalidRows || 0} invalid out of ${details.totalRows || 0}. ${message}`)
     }
-    if (payload.code === 'SETUP_ACTION_FAILED') throw new Error(`Backend not configured or setup action failed. ${message}`)
+    if (payload.code === 'SETUP_ACTION_FAILED') throw new Error(`Backend not configured or setup action failed. ${message} ${payload.details?.reason || ''}`)
     throw new Error(message)
   }
 
@@ -74,6 +74,8 @@ export default function Setup() {
   const [seeded,    setSeeded]    = useState(false)
   const [repairing, setRepairing] = useState(false)
   const [repairResult, setRepairResult] = useState(null)
+  const [billingChecking, setBillingChecking] = useState(false)
+  const [billingSchema, setBillingSchema] = useState(null)
 
   // Step 2: Opening stock
   const [stockDate,    setStockDate]    = useState(today())
@@ -121,6 +123,18 @@ export default function Setup() {
       flash(dryRun ? 'Black/White parity check completed.' : 'Black/White parity repair completed.')
     } catch (e) { setError('Black/White parity check failed: ' + e.message) }
     setRepairing(false)
+  }
+
+  const handleBillingSchema = async (dryRun = true) => {
+    if (billingChecking) return
+    if (!dryRun && !confirmSheetWrite('Create the missing Without_GST_Journal worksheet or initialize its empty headers. Existing journal data and NGST numbering will not be reset. Confirm the spreadsheet and backup first.')) return
+    setBillingChecking(true); setError('')
+    try {
+      const result = await runSetupAction('reconcile_without_gst', [], accessToken, { dryRun })
+      setBillingSchema(result)
+      if (result.ready) flash('Without GST storage is ready. Return to the bill and check/retry its ORIGINAL pending request ID.')
+    } catch (e) { setError('Without GST storage check failed: ' + e.message) }
+    finally { setBillingChecking(false) }
   }
 
   // Step 2: Opening stock
@@ -293,6 +307,21 @@ export default function Setup() {
           </summary>
 
         {/* STEP 1: SEED */}
+        <div className="rounded-2xl border border-orange-200 bg-white p-4 space-y-3">
+          <h2 className="text-sm font-bold text-gray-800">Without GST storage</h2>
+          <p className="text-xs text-gray-600">Check the configured spreadsheet, journal headers, Config worksheet and NGST sequence first. Repair only creates a missing journal or initializes a completely empty journal; incompatible existing data requires reconciliation.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={billingChecking} onClick={() => handleBillingSchema(true)} className="rounded-xl border border-orange-300 px-3 py-2 text-xs font-bold text-orange-700 disabled:opacity-50">{billingChecking ? 'Checking…' : 'Check Without GST storage'}</button>
+            <button type="button" disabled={billingChecking || !billingSchema?.dryRun || Boolean(billingSchema?.issues?.length) || !billingSchema?.changes?.length} onClick={() => handleBillingSchema(false)} className="rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Repair missing billing storage</button>
+          </div>
+          {billingSchema && <div role="status" className="space-y-1 text-xs text-gray-600">
+            <p className="font-bold">{billingSchema.ready ? 'Billing storage is ready.' : 'Billing storage needs attention.'}</p>
+            {billingSchema.changes.map(change => <p key={change}>{change}</p>)}
+            {billingSchema.issues.map(issue => <p key={issue} className="text-red-700">{issue}</p>)}
+            <p>{billingSchema.dryRun ? 'Check only — no spreadsheet writes.' : billingSchema.writesPerformed ? 'Confirmed repair completed and rechecked.' : 'No writes performed.'}</p>
+          </div>}
+        </div>
+
         {activeStep === 1 && (
           <div className="space-y-3">
             <div className="bg-white border border-gray-200 rounded-2xl p-4">

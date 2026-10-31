@@ -1,17 +1,16 @@
 import { verifyGoogleToken } from './_lib/auth.js'
 import { MODULES, requireRoleOrPermission } from './_lib/permissions.js'
 import { fail, handleOptions, ok, setCors } from './_lib/response.js'
-import { appendSheetRows, readConfig, readSheetRange } from './_lib/googleSheets.js'
-import { applyEvent, encodeEvent, eventRequestKey, normalizeBill, replayJournal } from '../src/lib/withoutGst.js'
+import { readConfig, readSheetRange } from './_lib/googleSheets.js'
+import { appendJournalEvent, loadBillingStorage } from './_lib/withoutGstSchema.js'
+import { eventRequestKey, JOURNAL_RANGE, normalizeBill, replayJournal } from '../src/lib/withoutGst.js'
 
 const COMPANY_KEYS = ['COMPANY_NAME', 'BUSINESS_ADDRESS', 'BUSINESS_PHONE', 'BUSINESS_EMAIL', 'BANK_NAME', 'BANK_ACCOUNT_NAME', 'BANK_ACCOUNT_NUMBER', 'IFSC_CODE', 'PAYMENT_TERMS', 'INVOICE_FOOTER_NOTE']
 
-// Injectable dependencies keep all persistence/auth tests isolated from production Sheets.
 export function createHandler(deps = {}) {
   const verify = deps.verify || verifyGoogleToken
   const permission = deps.permission || requireRoleOrPermission
-  const read = deps.read || readSheetRange
-  const append = deps.append || appendSheetRows
+  const append = deps.appendEvent || appendJournalEvent
   const config = deps.config || readConfig
   const start = () => Number(deps.startNumber ?? process.env.NGST_START_NUMBER)
   return async function handler(req, res) {
@@ -22,40 +21,43 @@ export function createHandler(deps = {}) {
     if (!auth.ok) return fail(res, auth.status, auth.code, auth.message)
     const access = permission(auth.user, MODULES.bills)
     if (!access.ok) return fail(res, access.status, access.code, access.message)
+    let writeStarted = false
+    const requestId = req.body?.id
     try {
-      const rows = await read('Without_GST_Journal!A:I')
-      const state = replayJournal(rows, start())
-      if (req.method === 'GET') return ok(res, { bills: [...state.bills.values()], rejectedAttempts: [...state.attempts.values()].filter(a => !a.result.accepted).length })
+      const { state, sheetId } = await loadBillingStorage({ read: deps.read, metadata: deps.metadata, startNumber: start() })
+      if (req.method === 'GET') return ok(res, { schemaReady: true, bills: [...state.bills.values()], rejectedAttempts: [...state.attempts.values()].filter(a => !a.result.accepted).length })
       const body = req.body
       if (!body || typeof body !== 'object') return fail(res, 400, 'INVALID_BILL', 'A bill request is required.')
       const { id, billId, action, expectedVersion = '', reason = '' } = body
-      if (typeof reason !== 'string' || reason.length > 2000 || typeof expectedVersion !== 'string') return fail(res, 400, 'INVALID_BILL', 'Invalid reason or version.')
-      const previous = state.attempts.get(id)
-      if (previous) {
-        const old = previous.event
-        if (old.actor !== auth.user.email || old.billId !== billId || old.action !== action || old.expectedVersion !== expectedVersion || old.reason !== reason || JSON.stringify(old.bill) !== JSON.stringify(normalizeBill(body.bill, action === 'FINALIZE' || action === 'SETTLE'))) return fail(res, 409, 'REQUEST_ID_REUSED', 'Request ID already used for different data.')
-        return previous.result.accepted ? ok(res, { record: state.bills.get(billId), replayed: true }) : fail(res, 409, 'BILL_CONFLICT', previous.result.message)
+      if (!/^[\w-]{8,100}$/.test(id || '') || !/^[\w-]{8,100}$/.test(billId || '') || typeof expectedVersion !== 'string' || typeof reason !== 'string' || reason.length > 2000 || !['SAVE', 'FINALIZE', 'REVISE', 'SETTLE'].includes(action)) return fail(res, 400, 'INVALID_BILL', 'Invalid request ID, bill ID, action, reason or version.')
+      let bill
+      try { bill = normalizeBill(body.bill, action === 'FINALIZE' || action === 'SETTLE') }
+      catch (error) { return fail(res, 400, 'INVALID_BILL', error.message, { requestId: id, requestState: 'unknown' }) }
+      const identity = { id, billId, action, expectedVersion, reason, bill, actor: auth.user.email }
+      const respondToAttempt = (stored, currentState) => {
+        if (eventRequestKey(stored.event) !== eventRequestKey(identity)) return fail(res, 409, 'REQUEST_ID_REUSED', 'This ID belongs to different data. Keep the pending request and reconcile it with the owner.', { requestId: id, requestState: 'unknown' })
+        if (!stored.result.accepted) return fail(res, 409, 'BILL_CONFLICT', stored.result.message, { requestId: id, requestState: 'rejected', authoritative: true })
+        return ok(res, { requestId: id, requestState: 'committed', authoritative: true, record: currentState.bills.get(billId), replayed: true })
       }
+      const previous = state.attempts.get(id)
+      if (previous) return respondToAttempt(previous, state)
+      if (body.reconcile === true) return ok(res, { schemaReady: true, requestId: id, requestState: 'not_found', message: 'No committed event was found in the current journal. Keep this ID and retry the same request; absence alone does not resolve an in-flight save.' })
       const companyConfig = action === 'FINALIZE' ? await config() : null
       const event = {
-        id, billId, action, expectedVersion, reason, bill: normalizeBill(body.bill, action === 'FINALIZE' || action === 'SETTLE'),
-        actor: auth.user.email, timestamp: new Date().toISOString(), company: companyConfig ? Object.fromEntries(COMPANY_KEYS.filter(key => companyConfig[key] !== undefined).map(key => [key, companyConfig[key]])) : null,
-        sequenceStart: start(),
+        ...identity, timestamp: new Date().toISOString(), sequenceStart: start(),
+        company: companyConfig ? Object.fromEntries(COMPANY_KEYS.filter(key => companyConfig[key] !== undefined).map(key => [key, companyConfig[key]])) : null,
       }
-      const candidate = applyEvent(state, event, start() + state.bills.size)
-      if (!candidate.accepted) return fail(res, 409, 'BILL_CONFLICT', candidate.message)
-      // One append request writes the complete event, including any JSON chunks.
-      // No retry here: an uncertain response is retried with the SAME request ID.
-      await append('Without_GST_Journal!A:I', encodeEvent(event), { raw: true })
-      const persisted = replayJournal(await read('Without_GST_Journal!A:I'), start())
-      const result = persisted.attempts.get(id)?.result
-      if (!result) throw new Error('Save result is uncertain. Retry the same request before editing.')
-      if (eventRequestKey(persisted.attempts.get(id).event) !== eventRequestKey(event)) return fail(res, 409, 'REQUEST_ID_REUSED', 'Request ID already used for different data.')
-      if (!result.accepted) return fail(res, 409, 'BILL_CONFLICT', result.message)
-      return ok(res, { record: persisted.bills.get(billId) })
+      // Valid intents, including stale conflicts, are durably arbitrated in journal
+      // order. A rejected stored event is an authoritative non-commit result.
+      writeStarted = true
+      let appendError
+      try { await append(event, sheetId) } catch (error) { appendError = error }
+      const persisted = replayJournal(await (deps.read || readSheetRange)(JOURNAL_RANGE), start())
+      const stored = persisted.attempts.get(id)
+      if (!stored) throw new Error(`Save could not be confirmed. Keep request ${id}. Check/retry that same ID after the owner checks journal access and request markers; do not delete markers or create a replacement bill.${appendError ? ` ${appendError.message}` : ''}`)
+      return respondToAttempt(stored, persisted)
     } catch (error) {
-      const setup = error.code === 'SHEET_RANGE_NOT_FOUND' || /NGST_START_NUMBER|headers|sequence/.test(error.message)
-      fail(res, setup ? 503 : 400, setup ? 'BILL_STORAGE_SETUP_REQUIRED' : 'BILL_SAVE_FAILED', error.message)
+      fail(res, 503, writeStarted ? 'BILL_SAVE_UNCERTAIN' : 'BILL_STORAGE_SETUP_REQUIRED', writeStarted ? error.message : `Without GST storage is not ready: ${error.message}`, { requestId, requestState: 'unknown', schemaReady: false })
     }
   }
 }

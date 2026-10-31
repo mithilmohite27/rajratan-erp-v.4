@@ -1,4 +1,6 @@
 // Shared by the browser and API. Money is integer paise; quantities have 4 decimals.
+export const JOURNAL_TAB = 'Without_GST_Journal'
+export const JOURNAL_RANGE = `${JOURNAL_TAB}!A:I`
 export const JOURNAL_HEADERS = ['EventID', 'BillID', 'ExpectedVersion', 'Action', 'Actor', 'Timestamp', 'PartIndex', 'PartCount', 'PayloadChunk']
 export const newId = () => globalThis.crypto.randomUUID()
 export const billToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())

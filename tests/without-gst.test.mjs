@@ -4,6 +4,7 @@ import { createBill, decimal, encodeEvent, JOURNAL_HEADERS, linePaise, money, ne
 import { createHandler } from '../api/without-gst-bills.js'
 import { requireRoleOrPermission, MODULES } from '../api/_lib/permissions.js'
 import { fixture, freight, line, payment } from './fixtures/without-gst.mjs'
+import { mockBillingStore } from './fixtures/without-gst-store.mjs'
 
 test('Kalpesh Mohite: sixteen deliveries, mixed rates/locations, payments and deductible freight', () => {
   const bill = normalizeBill(fixture(), true), t = totals(bill)
@@ -47,8 +48,8 @@ test('validation rejects negative, malformed, zero quantity, invalid dates, dupl
 })
 
 function mockBackend(overrides = {}) {
-  const rows = [JOURNAL_HEADERS], calls = []
-  const handler = createHandler({ startNumber: 42, verify: async () => ({ ok: true, user: { email: 'fixture@example.com' } }), permission: () => ({ ok: true }), read: async range => { assert.equal(range, 'Without_GST_Journal!A:I'); return structuredClone(rows) }, append: async (range, next, options) => { calls.push({ range, options }); rows.push(...structuredClone(next)) }, config: async () => ({ COMPANY_NAME: 'Rajratan Test', BUSINESS_PHONE: '0000000000' }), ...overrides })
+  const store = mockBillingStore(), { rows, calls } = store
+  const handler = createHandler({ startNumber: 42, verify: async () => ({ ok: true, user: { email: 'fixture@example.com' } }), permission: () => ({ ok: true }), read: store.read, metadata: store.metadata, appendEvent: store.appendEvent, config: async () => ({ COMPANY_NAME: 'Rajratan Test', BUSINESS_PHONE: '0000000000' }), ...overrides })
   return {
     rows, calls,
     async send(body, method = body ? 'POST' : 'GET') {
@@ -59,14 +60,14 @@ function mockBackend(overrides = {}) {
   }
 }
 const request = (bill = fixture(), extra = {}) => ({ id: newId(), billId: newId(), action: 'SAVE', expectedVersion: '', reason: '', bill: normalizeBill(bill), ...extra })
-test('Sheets save/reopen, RAW writes, stable IDs, unique numbers under concurrent creation', async () => {
+test('Sheets save/reopen, literal writes, stable IDs, unique numbers under concurrent creation', async () => {
   const api = mockBackend()
   const a = request({ ...fixture(), payments: [] }), b = request({ ...fixture('Another Client'), payments: [] })
   const results = await Promise.all([api.send(a), api.send(b)])
   assert.ok(results.every(r => r.ok)); assert.equal(new Set(results.map(r => r.record.number)).size, 2)
   assert.deepEqual(results.map(r => r.record.number).sort(), ['NGST42', 'NGST43'])
   const listed = await api.send(); assert.equal(listed.bills.length, 2)
-  assert.ok(api.calls.every(c => c.options.raw && c.range === 'Without_GST_Journal!A:I'))
+  assert.ok(api.calls.every(batch => batch[0].addNamedRange && batch[1].appendCells.sheetId === 17))
   assert.equal(listed.bills.find(r => r.id === a.billId).bill.deliveries.length, 16)
 })
 test('idempotent retries, including simultaneous requests with the same ID', async () => {
@@ -74,6 +75,8 @@ test('idempotent retries, including simultaneous requests with the same ID', asy
   const responses = await Promise.all([api.send(req), api.send(req)])
   assert.ok(responses.every(r => r.ok))
   assert.equal((await api.send()).bills.length, 1)
+  assert.equal(api.calls.length, 1)
+  assert.equal(api.rows.length, 2)
   assert.equal((await api.send(req)).replayed, true)
   const changed = structuredClone(req); changed.bill.clientName = 'Changed'
   assert.equal((await api.send(changed)).status, 409)
@@ -118,20 +121,20 @@ test('large multi-row journal events round-trip, remain immutable, and detect co
 })
 test('permissions and configuration fail closed before any write', async () => {
   let writes = 0
-  const unauth = mockBackend({ verify: async () => ({ ok: false, status: 401, code: 'MISSING_TOKEN', message: 'Sign in' }), append: () => { writes++ } })
+  const unauth = mockBackend({ verify: async () => ({ ok: false, status: 401, code: 'MISSING_TOKEN', message: 'Sign in' }), appendEvent: () => { writes++ } })
   assert.equal((await unauth.send(request())).status, 401)
-  const denied = mockBackend({ permission: () => ({ ok: false, status: 403, code: 'PERMISSION_DENIED', message: 'Denied' }), append: () => { writes++ } })
+  const denied = mockBackend({ permission: () => ({ ok: false, status: 403, code: 'PERMISSION_DENIED', message: 'Denied' }), appendEvent: () => { writes++ } })
   assert.equal((await denied.send(request())).status, 403)
-  const unconfigured = mockBackend({ startNumber: 0, append: () => { writes++ } })
+  const unconfigured = mockBackend({ startNumber: 0, appendEvent: () => { writes++ } })
   assert.equal((await unconfigured.send(request())).status, 503)
-  const missing = mockBackend({ read: async () => { const e = new Error('Missing journal'); e.code = 'SHEET_RANGE_NOT_FOUND'; throw e }, append: () => { writes++ } })
+  const missing = mockBackend({ read: async () => { const e = new Error('Missing journal'); e.code = 'SHEET_RANGE_NOT_FOUND'; throw e }, appendEvent: () => { writes++ } })
   assert.equal((await missing.send(request())).status, 503)
   assert.equal(writes, 0)
   assert.equal(requireRoleOrPermission({ email: 'nobody@example.invalid' }, MODULES.bills).ok, false)
 })
 test('uncertain write response is safely recoverable with the original ID', async () => {
-  let rows = [JOURNAL_HEADERS], failed = false
-  const api = mockBackend({ read: async () => structuredClone(rows), append: async (_range, next) => { rows.push(...structuredClone(next)); if (!failed) { failed = true; throw new Error('Connection lost after write') } } })
+  const store = mockBillingStore(); let failed = false
+  const api = mockBackend({ metadata: store.metadata, read: async range => { if (failed && range === store.JOURNAL_RANGE) { failed = false; throw new Error('Read response lost after write') } return store.read(range) }, appendEvent: async (event, sheetId) => { await store.appendEvent(event, sheetId); failed = true; throw new Error('Connection lost after write') } })
   const req = request(); assert.equal((await api.send(req)).ok, false)
   const retried = await api.send(req); assert.equal(retried.ok, true); assert.equal(retried.replayed, true)
   assert.equal((await api.send()).bills.length, 1)

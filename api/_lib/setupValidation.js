@@ -5,6 +5,7 @@ const SETUP_ACTIONS = new Set([
   'production_csv_import',
   'crm_csv_import',
   'repair_black_white_parity',
+  'reconcile_without_gst',
 ])
 
 const COLORS = new Set(['Red', 'Yellow', 'Black', 'White'])
@@ -128,7 +129,7 @@ export function validateSetupPayload(payload = {}) {
     return { ok: true, action, force: Boolean(payload.force), confirmHighRisk: true }
   }
 
-  if (action === 'repair_black_white_parity') {
+  if (action === 'repair_black_white_parity' || action === 'reconcile_without_gst') {
     return {
       ok: true,
       action,

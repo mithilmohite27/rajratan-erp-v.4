@@ -13,6 +13,7 @@ import {
   seedStaticDataIfEmpty,
 } from './_lib/googleSheets.js'
 import { MODULES, requireRoleOrPermission } from './_lib/permissions.js'
+import { reconcileWithoutGstSchema } from './_lib/withoutGstSchema.js'
 import {
   countCRMImportDuplicates,
   countOpeningMaterialDuplicates,
@@ -70,8 +71,14 @@ export default async function handler(req, res) {
         message: 'Setup headers checked safely.',
         action: validation.action,
         seeded,
-        schemaChanged: false,
+        schemaChanged: seeded.includes('Without_GST_Journal'),
       })
+      return
+    }
+
+    if (validation.action === 'reconcile_without_gst') {
+      const result = await reconcileWithoutGstSchema({ dryRun: validation.dryRun })
+      ok(res, { action: validation.action, message: result.ready ? 'Without GST storage is ready.' : 'Without GST storage needs attention. No existing records were changed.', ...result })
       return
     }
 
