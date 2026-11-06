@@ -10,8 +10,9 @@ function inWords(paise) {
 }
 export const quantitySummary = quantities => Object.entries(quantities).map(([unit, qty]) => `${(qty / 10000).toLocaleString('en-IN', { maximumFractionDigits: 4 })} ${unit}`).join(' · ') || '—'
 
-// Included in both the in-app preview and the isolated print window.
-export const WITHOUT_GST_PRINT_CSS = `
+export const WITHOUT_GST_PAGE_CSS = `@page { size: A4; margin: 12mm; @bottom-right { content: 'Page ' counter(page) ' of ' counter(pages); font: 8px Arial, sans-serif; color: #546373; } }`
+
+const WITHOUT_GST_PRINT_CSS = `
   .ngst-document { width: 100%; color: #17232e; font: 11px/1.5 Arial, sans-serif; background: white; padding: 12mm; box-sizing: border-box; }
   .ngst-document * { box-sizing: border-box; }
   .ngst-document h1, .ngst-document h2, .ngst-document p { margin: 0; }
@@ -36,9 +37,7 @@ export const WITHOUT_GST_PRINT_CSS = `
   .ngst-signature { min-width: 170px; text-align: right; }
   .ngst-entry { border-bottom: 1px solid #e3e6e9; padding: 5px 0; overflow-wrap: anywhere; }
   .ngst-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
-  @page { size: A4; margin: 12mm; @bottom-right { content: 'Page ' counter(page) ' of ' counter(pages); font: 8px Arial, sans-serif; color: #546373; } }
   @media print {
-    body { margin: 0; background: white; }
     .ngst-document { padding: 0; width: 100%; }
     .ngst-lines thead { display: table-header-group; }
     .ngst-lines tr, .ngst-summary, .ngst-footer, .ngst-entry, .ngst-header, .ngst-customer { break-inside: avoid; page-break-inside: avoid; }

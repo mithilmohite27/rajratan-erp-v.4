@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { billToday as today, createBill, linePaise, money, newId, normalizeBill, paymentStatus, totals } from '../lib/withoutGst.js'
 import { billRequest } from '../lib/withoutGstApi.js'
-import WithoutGstPrint, { quantitySummary, WITHOUT_GST_PRINT_CSS } from './WithoutGstPrint.jsx'
+import WithoutGstPrint, { quantitySummary, WITHOUT_GST_PAGE_CSS } from './WithoutGstPrint.jsx'
+import BillPrintPage from './BillPrintPage.jsx'
 
 const inputClass = 'w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100'
 const buttonClass = 'rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 disabled:opacity-40'
@@ -41,7 +42,6 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
   const [to, setTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const busy = useRef(false)
-  const printRef = useRef(null)
   const issued = record?.status === 'finalized'
   const disabled = saving || Boolean(pending) || Boolean(historical)
   const summary = totals(bill)
@@ -134,36 +134,13 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
   const showPreview = () => {
     try { normalizeBill(bill, true); setError(''); setPreview(true) } catch (e) { setError(e.message) }
   }
-  const print = async () => {
-    if (!printRef.current) return
-    const popup = window.open('', '_blank', 'width=1000,height=800')
-    if (!popup) { setError('Allow pop-ups to print or save this bill as PDF.'); return }
-    popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Without GST Bill</title></head><body></body></html>')
-    popup.document.close()
-    const style = popup.document.createElement('style'); style.textContent = WITHOUT_GST_PRINT_CSS; popup.document.head.appendChild(style)
-    try {
-      const original = printRef.current.querySelector('.ngst-document')
-      const documentNode = original.cloneNode(true)
-      // Embed the loaded official logo so the new document does not depend on a
-      // second network request or a cross-document image-loader race.
-      const sourceImages = [...original.querySelectorAll('img')]
-      const clonedImages = [...documentNode.querySelectorAll('img')]
-      for (let i = 0; i < sourceImages.length; i++) {
-        await sourceImages[i].decode()
-        const canvas = document.createElement('canvas')
-        canvas.width = sourceImages[i].naturalWidth; canvas.height = sourceImages[i].naturalHeight
-        canvas.getContext('2d').drawImage(sourceImages[i], 0, 0)
-        clonedImages[i].src = canvas.toDataURL('image/png')
-      }
-      if (popup.closed) return
-      popup.document.body.appendChild(documentNode)
-      popup.document.title = `${record?.number || 'NGST Draft'}${historical ? ` - Revision ${historical.revision}` : ''}`
-      await Promise.all(clonedImages.map(img => img.decode()))
-      if (!popup.closed) { popup.focus(); popup.print() }
-    } catch {
-      popup.close(); setError('The company logo could not load for printing. Refresh the preview and try again.')
-    }
-  }
+  const billDocument = preview && <WithoutGstPrint
+    bill={historical?.bill || bill}
+    config={historical?.company || record?.company || config}
+    number={record?.number}
+    status={historical?.status || record?.status || 'draft'}
+    revision={historical?.revision || record?.revision || 0}
+  />
   const filtered = saved.filter(row => `${row.number} ${row.bill.clientName}`.toLowerCase().includes(search.toLowerCase()) && (!from || row.bill.date >= from) && (!to || row.bill.date <= to) && (!statusFilter || paymentStatus(row.bill) === statusFilter))
 
   return <div className="p-4 space-y-4">
@@ -175,9 +152,11 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     {pending && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">A save is pending. Its original request ID is preserved: <code className="break-all">{pending.id}</code><p className="mt-1 text-xs">Check whether it committed before retrying. Schema errors or an absent event will not clear this request.</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={saving} onClick={() => save('', '', true, true)} className={buttonClass}>Check pending save</button><button type="button" disabled={saving} onClick={() => save('', '', true)} className={buttonClass}>{saving ? 'Checking / saving…' : 'Retry pending save'}</button></div></div>}
     <div className="flex flex-wrap items-center justify-between gap-2"><div><strong>{record?.number || 'New Without GST Bill'}</strong><p className="text-xs text-gray-500">{issued ? `Issued · revision ${record.revision}` : 'Draft'}{dirty && ' · unsaved changes'}</p></div><button type="button" disabled={saving || Boolean(pending)} onClick={() => replaceWorking(null)} className={buttonClass}>New bill</button></div>
     {preview ? <>
-      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setPreview(false); setHistorical(null) }} className={buttonClass}>Back to bill</button><button type="button" onClick={print} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white">Print / Save as PDF</button></div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setPreview(false); setHistorical(null) }} className={buttonClass}>Back to bill</button><button type="button" onClick={() => window.print()} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white">Print / Save as PDF</button></div>
       {historical && <p className="text-xs text-orange-700">Historical snapshot · {historical.timestamp} · {historical.actor}</p>}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-slate-200 p-2"><div ref={printRef} style={{ width: '210mm', minHeight: '297mm', margin: '0 auto' }}><WithoutGstPrint bill={historical?.bill || bill} config={historical?.company || record?.company || config} number={record?.number} status={historical?.status || record?.status || 'draft'} revision={historical?.revision || record?.revision || 0} /></div></div>
+      <p className="text-xs text-gray-500">On your phone, open the ERP in Safari or Chrome if the print menu does not appear.</p>
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-slate-200 p-2"><div style={{ width: '210mm', minHeight: '297mm', margin: '0 auto' }}>{billDocument}</div></div>
+      {active && <BillPrintPage pageCss={WITHOUT_GST_PAGE_CSS} title={`${record?.number || 'NGST Draft'}${historical ? ` - Revision ${historical.revision}` : ''}`}>{billDocument}</BillPrintPage>}
     </> : <>
       <fieldset disabled={disabled || issued} className="space-y-4 min-w-0">
         <section className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../App.jsx'
 import { loadCRM } from '../lib/sheets.js'
 import { today } from '../lib/formulas.js'
 import { DEFAULT_CONFIG } from '../lib/config.js'
 import WithoutGstBilling from '../components/WithoutGstBilling.jsx'
+import BillPrintPage from '../components/BillPrintPage.jsx'
 
 // ── Company Details (fixed) ───────────────────
 const COMPANY = {
@@ -727,7 +728,6 @@ export default function BillGenerator() {
   const defaultHalfGstRate = defaultGstRate / 2
   const [billType, setBillType] = useState('invoice')
   const [preview, setPreview]   = useState(false)
-  const printRef = useRef(null)
 
   // ── CRM sync ────────────────────────────────
   const [clients, setClients] = useState([])
@@ -825,75 +825,12 @@ export default function BillGenerator() {
     }))
   }
 
-  const handlePrint = () => {
-    const el = printRef.current
-    if (!el) return
-
-    const logoUrl = `${window.location.origin}/assets/rajratan-erp-icon-light.png`
-
-    const printHTML = el.innerHTML.replaceAll(
-      '/assets/rajratan-erp-icon-light.png',
-      logoUrl
-    )
-
-    const printWindow = window.open('', '_blank', 'width=900,height=700')
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${documentTitle}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { background: #fff; }
-            img { display: block; }
-
-            @media print {
-              body { margin: 0; }
-              @page { size: A4; margin: 0; }
-            }
-          </style>
-        </head>
-
-        <body>
-          ${printHTML}
-
-          <script>
-            window.onload = function () {
-              setTimeout(function () {
-                window.print()
-                window.close()
-              }, 1500)
-            }
-          </script>
-        </body>
-      </html>
-    `)
-
-    printWindow.document.close()
-    printWindow.document.title = `${documentTitle} - ${form[numberField] || numberPlaceholder}`
-  }
+  const billDocument = billType === 'invoice'
+    ? <TaxInvoicePreview data={form} config={config} />
+    : <ChallanPreview data={form} config={config} />
 
   return (
     <div className={`${isWithoutGst ? 'max-w-5xl' : 'max-w-lg'} mx-auto`}>
-      {/* Print styles injected globally */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-
-          .bill-sheet,
-          .bill-sheet * {
-            visibility: visible !important;
-          }
-
-          .bill-sheet {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-          }
-        }
-      `}</style>
-
       {/* Header */}
       <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-12 z-10">
         <h1 className="text-lg font-bold text-gray-800"> Bill Generator</h1>
@@ -1247,22 +1184,20 @@ export default function BillGenerator() {
       {preview && (
         <div className="p-4">
           <button
-            onClick={handlePrint}
+            onClick={() => window.print()}
             className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl text-base shadow-lg shadow-green-200 mb-4"
           >
              Print / Save as PDF
           </button>
 
           <p className="text-xs text-center text-gray-400 mb-4">
-            A print dialog will open → select "Save as PDF" as destination
+            On your phone, open the ERP in Safari or Chrome if the print menu does not appear.
           </p>
 
-          <div ref={printRef} className="bill-preview-frame">
-            {billType === 'invoice'
-              ? <TaxInvoicePreview data={form} config={config} />
-              : <ChallanPreview data={form} config={config} />
-            }
-          </div>
+          <div className="bill-preview-frame">{billDocument}</div>
+          <BillPrintPage pageCss="@page { size: A4; margin: 0; }" title={`${documentTitle} - ${form[numberField] || numberPlaceholder}`}>
+            {billDocument}
+          </BillPrintPage>
 
           <button
             onClick={() => setPreview(false)}

@@ -174,21 +174,28 @@ button, input, textarea, select {
     }
   }
 
-  @media print {
-    .bill-preview-frame {
-      display: block;
-      overflow: visible;
-      padding: 0;
-      background: transparent;
-    }
+}
 
-    .bill-preview-frame .bill-sheet {
-      transform: none !important;
-      margin: 0 !important;
-    }
+.bill-print-page {
+  display: none;
+}
 
-    .bill-sheet {
-      box-shadow: none !important;
-    }
+@media print {
+  body:has(> .bill-print-page) > :not(.bill-print-page) {
+    display: none !important;
+  }
+
+  body:has(> .bill-print-page) {
+    margin: 0;
+    background: white;
+  }
+
+  .bill-print-page {
+    display: block;
+  }
+
+  .bill-print-page .bill-sheet {
+    width: 100% !important;
+    min-height: 0 !important;
   }
 }

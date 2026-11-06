@@ -42,6 +42,6 @@ test('100-delivery print has every row, repeated headers and pagination guards',
   const bill = fixture(); bill.deliveries = Array.from({ length: 100 }, (_, i) => ({ ...line(), product: `Unique Product ${i + 1}` }))
   const html = renderToStaticMarkup(React.createElement(print, { bill, config: DEFAULT_CONFIG, status: 'draft' }))
   for (let i = 1; i <= 100; i++) assert.equal(html.split(`Unique Product ${i}<`).length - 1, 1)
-  assert.ok(html.includes('table-header-group')); assert.ok(html.includes('break-inside: avoid')); assert.ok(html.includes('size: A4'))
+  assert.ok(html.includes('table-header-group')); assert.ok(html.includes('break-inside: avoid'))
   assert.ok(html.includes('DRAFT — Not issued'))
 })

@@ -63,7 +63,10 @@ test('browser: tab isolation, editing, saved drafts, mobile, issued revisions, a
     const context = await browser.newContext({ viewport: { width: 1365, height: 960 } })
     // Native print UI and CDP PDF export cannot run simultaneously reliably.
     // Assert the real handler invokes print, then use Chromium's PDF renderer.
-    await context.addInitScript(() => { window.print = () => { window.__ngstPrintCalls = (window.__ngstPrintCalls || 0) + 1 } })
+    await context.addInitScript(() => {
+      window.open = () => null
+      window.print = () => { window.__printCalls = (window.__printCalls || 0) + 1 }
+    })
     const errors = []
     context.on('requestfailed', request => t.diagnostic(`Request failed: ${request.url()} ${request.failure()?.errorText}`))
     await context.route('**/*', async route => {
@@ -134,32 +137,46 @@ test('browser: tab isolation, editing, saved drafts, mobile, issued revisions, a
     await fs.mkdir(path.join(root, 'tmp/ngst-qa'), { recursive: true })
     await page.screenshot({ path: path.join(root, 'tmp/ngst-qa/mobile.png'), fullPage: false })
     await page.getByRole('button', { name: 'Preview bill', exact: true }).click()
-    assert.equal(await page.locator('.ngst-document tbody tr').count(), 16)
-    await page.setViewportSize({ width: 1365, height: 960 })
-    await page.screenshot({ path: path.join(root, 'tmp/ngst-qa/desktop-preview.png'), fullPage: true })
-    const popupPromise = page.waitForEvent('popup')
-    await page.waitForFunction(() => [...document.querySelectorAll('.ngst-document img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 5000 })
-    await page.getByRole('button', { name: 'Print / Save as PDF', exact: true }).click()
-    const popup = await popupPromise; await popup.waitForLoadState()
-    await popup.waitForFunction(() => document.images.length > 0 && [...document.images].every(img => img.complete && img.naturalWidth > 0))
-    await popup.waitForFunction(() => window.__ngstPrintCalls > 0)
-    await popup.pdf({ path: path.join(root, 'tmp/ngst-qa/kalpesh.pdf'), preferCSSPageSize: true, printBackground: true })
-    assert.equal(await popup.locator('.ngst-document').count(), 1)
-    await popup.close()
+    assert.equal(await page.locator('.ngst-document:visible tbody tr').count(), 16)
 
+    const printPage = page.locator('body > .bill-print-page')
+    let printCalls = 0
+    const printPdf = async (file, selector) => {
+      assert.equal(await printPage.isVisible(), false)
+      await page.getByRole('button', { name: 'Print / Save as PDF', exact: true }).click()
+      assert.equal(await page.evaluate(() => window.__printCalls), ++printCalls)
+      assert.equal(context.pages().length, 1)
+      await page.emulateMedia({ media: 'print' })
+      try {
+        assert.equal(await page.locator('#root').isVisible(), false)
+        assert.equal(await page.locator(selector + ':visible').count(), 1)
+        await printPage.locator('img').first().evaluate(img => img.decode())
+        const pdf = await page.pdf({ path: path.join(root, 'tmp/ngst-qa', file), preferCSSPageSize: true, printBackground: true })
+        const [, width, height] = pdf.toString('latin1').match(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/) || []
+        assert.ok(Math.abs(Number(width) - 595) < 2 && Math.abs(Number(height) - 842) < 2, 'PDF uses A4 paper')
+        return pdf
+      } finally {
+        await page.emulateMedia({ media: 'screen' })
+      }
+    }
+
+    await printPdf('kalpesh.pdf', '.ngst-document')
     const longCard = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Saved Without GST Bills' }) }).locator('div.rounded-xl').filter({ hasText: 'Long Table Fixture' })
     await longCard.getByRole('button', { name: 'Open', exact: true }).click()
     await page.getByRole('button', { name: 'Preview bill', exact: true }).click()
-    const longPopupPromise = page.waitForEvent('popup'); await page.getByRole('button', { name: 'Print / Save as PDF', exact: true }).click()
-    const longPopup = await longPopupPromise; await longPopup.waitForLoadState()
-    await longPopup.waitForFunction(() => document.images.length > 0 && [...document.images].every(img => img.complete && img.naturalWidth > 0))
-    await longPopup.waitForFunction(() => window.__ngstPrintCalls > 0)
-    await longPopup.pdf({ path: path.join(root, 'tmp/ngst-qa/long-table.pdf'), preferCSSPageSize: true, printBackground: true })
-    assert.equal(await longPopup.locator('.ngst-lines tbody tr').count(), 100)
-    const width = await longPopup.locator('.ngst-document').evaluate(el => el.getBoundingClientRect().width)
-    assert.ok(width > 0)
+    assert.equal(await printPage.locator('.ngst-lines tbody tr').count(), 100)
+    const longPdf = await printPdf('long-table.pdf', '.ngst-document')
+    assert.ok((longPdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length > 1)
+
+    for (const type of ['Tax Invoice', 'Delivery Challan']) {
+      await page.getByRole('button', { name: type, exact: true }).click()
+      await page.getByRole('button', { name: 'Preview', exact: true }).click()
+      assert.equal(await printPage.locator('.ngst-document').count(), 0)
+      const pdf = await printPdf(type + '.pdf', '.bill-sheet')
+      assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 1)
+    }
+    await page.getByRole('button', { name: 'Without GST Bill', exact: true }).click()
     assert.deepEqual(errors, [])
-    await longPopup.close()
     // A stale successful load must not allow a later schema failure to create a
     // fresh pending request. The server is checked again BEFORE pending is stored.
     await page.getByRole('button', { name: 'Back to bill', exact: true }).click()
