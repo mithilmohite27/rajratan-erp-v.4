@@ -1,5 +1,5 @@
 import React from 'react'
-import { decimal, money, totals } from '../lib/withoutGst.js'
+import { broughtForwardTotals, decimal, money, totals } from '../lib/withoutGst.js'
 import { DEFAULT_CONFIG } from '../lib/config.js'
 
 function inWords(paise) {
@@ -48,6 +48,8 @@ const WITHOUT_GST_PRINT_CSS = `
 export default function WithoutGstPrint({ bill, config, number, status, revision }) {
   const company = { ...DEFAULT_CONFIG, ...config }
   const t = totals(bill)
+  const previous = bill.previousOutstanding
+  const broughtForward = broughtForwardTotals(bill, t)
   return <article className="ngst-document">
     <style>{WITHOUT_GST_PRINT_CSS}</style>
     <header className="ngst-header">
@@ -73,6 +75,16 @@ export default function WithoutGstPrint({ bill, config, number, status, revision
       <div className="ngst-summary-line ngst-balance"><span>Outstanding balance</span><strong>{money(t.outstanding)}</strong></div>
       {t.credit > 0 && <div className="ngst-summary-line"><span>Credit / overpayment</span><strong>{money(t.credit)}</strong></div>}
       <p className="ngst-muted">Grand total in words: {inWords(t.total)}</p>
+      {broughtForward && <>
+        <div className="ngst-summary-line"><span>Previous Outstanding (manually entered)</span><strong>{money(broughtForward.previousPaise)}</strong></div>
+        {previous.reference && <p className="ngst-muted ngst-wrap">Previous bill/reference: {previous.reference}</p>}
+        {previous.remarks && <p className="ngst-muted ngst-wrap">{previous.remarks}</p>}
+        <div className="ngst-summary-line ngst-balance"><span>Total Payable</span><strong>{money(broughtForward.payablePaise)}</strong></div>
+        {broughtForward.remainingPaise !== broughtForward.payablePaise && <>
+          <p className="ngst-muted">Total Payable is before current bill payments and adjustments.</p>
+          <div className="ngst-summary-line"><span>Remaining payable after current bill payments and adjustments</span><strong>{money(broughtForward.remainingPaise)}</strong></div>
+        </>}
+      </>}
     </section>
     {bill.payments.length > 0 && <section style={{ marginBottom: 15 }}><strong>Payments allocated to this bill</strong>{bill.payments.map(p => <div key={p.id} className="ngst-entry">{p.date} · {p.method} · {moneySafe(p.amount)}{p.reference && ` · Ref: ${p.reference}`}{p.notes && ` · ${p.notes}`}</div>)}</section>}
     {bill.freight.length > 0 && <section style={{ marginBottom: 15 }}><strong>Freight adjustments</strong>{bill.freight.map(p => <div key={p.id} className="ngst-entry">{p.date} · {p.description} · {moneySafe(p.amount)} · Paid by {p.paidBy} · {p.deductible ? 'Deducted from bill' : 'Not deductible'}</div>)}</section>}

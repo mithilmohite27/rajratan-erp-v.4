@@ -4,6 +4,7 @@ import { fail, handleOptions, ok, setCors } from './_lib/response.js'
 import { readConfig, readSheetRange } from './_lib/googleSheets.js'
 import { appendJournalEvent, loadBillingStorage } from './_lib/withoutGstSchema.js'
 import { eventRequestKey, JOURNAL_RANGE, normalizeBill, replayJournal } from '../src/lib/withoutGst.js'
+import { isBillingId, selectPreviousOutstanding } from '../src/lib/withoutGstOutstanding.js'
 
 const COMPANY_KEYS = ['COMPANY_NAME', 'BUSINESS_ADDRESS', 'BUSINESS_PHONE', 'BUSINESS_EMAIL', 'BANK_NAME', 'BANK_ACCOUNT_NAME', 'BANK_ACCOUNT_NUMBER', 'IFSC_CODE', 'PAYMENT_TERMS', 'INVOICE_FOOTER_NOTE']
 
@@ -20,10 +21,23 @@ export function createHandler(deps = {}) {
     if (!auth.ok) return fail(res, auth.status, auth.code, auth.message)
     const access = permission(auth.user, MODULES.bills)
     if (!access.ok) return fail(res, access.status, access.code, access.message)
+    const { view, customerId, currentBillId } = req.query || {}
+    const outstandingView = req.method === 'GET' && view === 'outstanding'
+    if (outstandingView) {
+      res.setHeader('Cache-Control', 'private, no-store')
+      if (!isBillingId(customerId) || (currentBillId !== undefined && !isBillingId(currentBillId))) {
+        return fail(res, 400, 'INVALID_BILLING_ID', 'A valid customer ID and optional current bill ID are required.')
+      }
+    }
     let writeStarted = false
     const requestId = req.body?.id
     try {
       const { state, sheetId, startNumber, sequence, target } = await loadBillingStorage({ read: deps.read, metadata: deps.metadata, startNumber: deps.startNumber })
+      if (outstandingView) {
+        const outstanding = selectPreviousOutstanding(state, customerId, currentBillId)
+        if (!outstanding) return fail(res, 404, 'CUSTOMER_NOT_REGISTERED', 'No verified customer identity was found. Legacy bill names cannot establish a balance.')
+        return ok(res, { ...outstanding, asOf: new Date().toISOString() })
+      }
       if (req.method === 'GET') return ok(res, { schemaReady: true, sequence, target, bills: [...state.bills.values()], rejectedAttempts: [...state.attempts.values()].filter(a => !a.result.accepted).length })
       const body = req.body
       if (!body || typeof body !== 'object') return fail(res, 400, 'INVALID_BILL', 'A bill request is required.')

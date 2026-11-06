@@ -1,10 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createBill, decimal, encodeEvent, JOURNAL_HEADERS, linePaise, money, newId, normalizeBill, paymentStatus, replayJournal, totals } from '../src/lib/withoutGst.js'
+import { broughtForwardTotals, createBill, decimal, encodeEvent, JOURNAL_HEADERS, linePaise, money, newId, normalizeBill, paymentStatus, replayJournal, totals } from '../src/lib/withoutGst.js'
 import { createHandler } from '../api/without-gst-bills.js'
 import { requireRoleOrPermission, MODULES } from '../api/_lib/permissions.js'
 import { fixture, freight, line, payment } from './fixtures/without-gst.mjs'
 import { mockBillingStore } from './fixtures/without-gst-store.mjs'
+
+test('optional brought-forward amount validates and affects only display totals', () => {
+  const bill = { ...fixture(), deliveries: [line(1, 20000)], payments: [payment(7000)], freight: [] }
+  const legacy = normalizeBill(bill, true)
+  assert.equal(broughtForwardTotals(legacy), null)
+  assert.deepEqual(normalizeBill({ ...bill, previousOutstanding: null }, true), legacy)
+  const withOldBalance = normalizeBill({ ...bill, previousOutstanding: { amount: ' 5000.25 ', reference: ' OLD-9 ', remarks: ' Prior balance ' } }, true)
+  assert.deepEqual(withOldBalance.previousOutstanding, { amount: '5000.25', reference: 'OLD-9', remarks: 'Prior balance' })
+  assert.deepEqual(broughtForwardTotals(withOldBalance), { previousPaise: 500025, payablePaise: 2500025, remainingPaise: 1800025 })
+  assert.deepEqual(totals(withOldBalance), totals(legacy))
+  assert.equal(paymentStatus(withOldBalance), paymentStatus(legacy))
+  for (const amount of ['', '-1', '0', '2.345', '1e4', 'NaN']) {
+    assert.throws(() => normalizeBill({ ...bill, previousOutstanding: { amount } }), /previous outstanding amount/i)
+  }
+  assert.throws(() => normalizeBill({ ...bill, previousOutstanding: true }), /Invalid previous outstanding/)
+})
 
 test('Kalpesh Mohite: sixteen deliveries, mixed rates/locations, payments and deductible freight', () => {
   const bill = normalizeBill(fixture(), true), t = totals(bill)

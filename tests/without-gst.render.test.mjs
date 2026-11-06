@@ -45,3 +45,15 @@ test('100-delivery print has every row, repeated headers and pagination guards',
   assert.ok(html.includes('table-header-group')); assert.ok(html.includes('break-inside: avoid'))
   assert.ok(html.includes('DRAFT — Not issued'))
 })
+
+test('print separates manually entered old balance from supply value and current payments', () => {
+  const bill = { ...fixture(), deliveries: [line(1, 20000)], payments: [], freight: [] }
+  const render = data => renderToStaticMarkup(React.createElement(print, { bill: data, config: DEFAULT_CONFIG, number: 'NGST42', status: 'finalized' }))
+  assert.doesNotMatch(render(bill), /Previous Outstanding|Total Payable/)
+  const html = render({ ...bill, previousOutstanding: { amount: '5000', reference: 'OLD-9', remarks: 'Balance brought forward' } })
+  assert.match(html, /Grand total<\/span><strong>₹20,000\.00/)
+  assert.match(html, /Previous Outstanding \(manually entered\)<\/span><strong>₹5,000\.00/)
+  assert.match(html, /Total Payable<\/span><strong>₹25,000\.00/)
+  assert.match(html, /Previous bill\/reference: OLD-9/)
+  assert.match(html, /Balance brought forward/)
+})

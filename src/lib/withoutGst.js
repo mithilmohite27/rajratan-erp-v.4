@@ -42,6 +42,18 @@ export function paymentStatus(bill) {
   const t = totals(bill)
   return t.credit ? 'Credit' : t.balance === 0 ? 'Paid' : t.payments || t.freight ? 'Partial' : 'Unpaid'
 }
+// Display only. Keep this out of totals(), which drives bill balances and payment status.
+export function broughtForwardTotals(bill, current = totals(bill)) {
+  if (!bill.previousOutstanding) return null
+  let previousPaise
+  try { previousPaise = decimal(bill.previousOutstanding.amount) } catch {
+    throw new Error('Enter a valid previous outstanding amount with up to two decimal places.')
+  }
+  if (previousPaise <= 0) throw new Error('Previous outstanding amount must be greater than zero.')
+  const payablePaise = current.total + previousPaise
+  if (!Number.isSafeInteger(payablePaise)) throw new Error('Total payable is too large.')
+  return { previousPaise, payablePaise, remainingPaise: current.outstanding + previousPaise }
+}
 export function validDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
 }
@@ -91,7 +103,17 @@ export function normalizeBill(input, strict = false) {
   if (new Set(references).size !== references.length) throw new Error('A payment reference is allocated more than once.')
   const signatures = bill.payments.map(p => `${p.date}|${decimal(p.amount)}|${p.method.toLowerCase()}|${p.reference.toLowerCase()}`)
   if (new Set(signatures).size !== signatures.length) throw new Error('Possible duplicate payment: same date, amount, method and reference. Add a distinct reference to identify separate payments.')
-  totals(bill)
+  const current = totals(bill)
+  if (input.previousOutstanding != null) {
+    const previous = input.previousOutstanding
+    if (typeof previous !== 'object' || Array.isArray(previous)) throw new Error('Invalid previous outstanding details.')
+    bill.previousOutstanding = {
+      amount: text(previous.amount, 30),
+      reference: text(previous.reference ?? '', 150),
+      remarks: text(previous.remarks ?? '', 500),
+    }
+    broughtForwardTotals(bill, current)
+  }
   return bill
 }
 export function createBill(date, legacy = {}) {
@@ -148,7 +170,8 @@ export function encodeEvent(event) {
 export function replayJournal(rows, startNumber) {
   if (!Number.isSafeInteger(startNumber) || startNumber < 1) throw new Error('Set NGST_START_NUMBER to the next unused NGST number before saving bills.')
   if (JSON.stringify(rows[0]) !== JSON.stringify(JOURNAL_HEADERS)) throw new Error('Without_GST_Journal is missing or has unexpected headers. Follow the setup notes.')
-  const state = { bills: new Map(), attempts: new Map() }
+  // Legacy events do not establish customer identities or verify customer links.
+  const state = { bills: new Map(), attempts: new Map(), customers: new Map(), customerLinks: new Map() }
   for (let i = 1; i < rows.length;) {
     const row = rows[i], count = Number(row[7])
     if (!Number.isSafeInteger(count) || count < 1 || Number(row[6]) !== 0 || i + count > rows.length) throw new Error(`Incomplete journal event at row ${i + 1}. Reconciliation required.`)

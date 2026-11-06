@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { billToday as today, createBill, linePaise, money, newId, normalizeBill, paymentStatus, totals } from '../lib/withoutGst.js'
+import { billToday as today, broughtForwardTotals, createBill, linePaise, money, newId, normalizeBill, paymentStatus, totals } from '../lib/withoutGst.js'
 import { billRequest } from '../lib/withoutGstApi.js'
 import WithoutGstPrint, { quantitySummary, WITHOUT_GST_PAGE_CSS } from './WithoutGstPrint.jsx'
 import BillPrintPage from './BillPrintPage.jsx'
@@ -45,10 +45,12 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
   const issued = record?.status === 'finalized'
   const disabled = saving || Boolean(pending) || Boolean(historical)
   const summary = totals(bill)
-  const hasContent = Boolean(bill.clientName || bill.clientAddress || bill.clientPhone || bill.notes || bill.payments.length || bill.freight.length || bill.mode !== 'standard' || bill.state !== 'Gujarat' || bill.date !== today() || bill.deliveries.length !== 1 || bill.deliveries.some(row => row.qty || row.rate || row.location || row.specification || row.product !== 'Paver Blocks' || row.unit !== 'Brass'))
+  const previous = bill.previousOutstanding
+  const hasContent = Boolean(previous || bill.clientName || bill.clientAddress || bill.clientPhone || bill.notes || bill.payments.length || bill.freight.length || bill.mode !== 'standard' || bill.state !== 'Gujarat' || bill.date !== today() || bill.deliveries.length !== 1 || bill.deliveries.some(row => row.qty || row.rate || row.location || row.specification || row.product !== 'Paver Blocks' || row.unit !== 'Brass'))
   const dirty = record ? JSON.stringify(record.bill) !== JSON.stringify(bill) : hasContent
   let validation = ''
-  try { normalizeBill(bill) } catch (e) { validation = e.message }
+  let broughtForward
+  try { broughtForward = broughtForwardTotals(normalizeBill(bill), summary) } catch (e) { validation = e.message }
 
   useEffect(() => {
     try { localStorage.setItem(storageKey, JSON.stringify({ schema: 1, bill, record, billId, pending })); setStorageError('') }
@@ -85,7 +87,7 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     if (pending) { setError('Retry the pending save before opening another bill.'); return }
     if (dirty && !window.confirm('Replace the current working draft? Save it first if you want to keep it.')) return
     const next = nextRecord ? structuredClone(nextRecord.bill) : createBill(today())
-    if (duplicate) { next.date = today(); next.payments = []; next.freight = []; next.deliveries = next.deliveries.map(row => ({ ...row, id: newId() })) }
+    if (duplicate) { next.date = today(); next.payments = []; next.freight = []; delete next.previousOutstanding; next.deliveries = next.deliveries.map(row => ({ ...row, id: newId() })) }
     setBill(next); setRecord(duplicate ? null : nextRecord); setBillId(duplicate || !nextRecord ? newId() : nextRecord.id)
     setPreview(false); setSettling(false); setHistorical(null); setReason(''); setError(''); setNotice('')
   }
@@ -134,12 +136,13 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
   const showPreview = () => {
     try { normalizeBill(bill, true); setError(''); setPreview(true) } catch (e) { setError(e.message) }
   }
+  const printSnapshot = historical || (issued && previous ? record.history?.findLast(entry => entry.action === 'FINALIZE') : null)
   const billDocument = preview && <WithoutGstPrint
-    bill={historical?.bill || bill}
-    config={historical?.company || record?.company || config}
+    bill={printSnapshot?.bill || bill}
+    config={printSnapshot?.company || record?.company || config}
     number={record?.number}
-    status={historical?.status || record?.status || 'draft'}
-    revision={historical?.revision || record?.revision || 0}
+    status={printSnapshot?.status || record?.status || 'draft'}
+    revision={printSnapshot?.revision || record?.revision || 0}
   />
   const filtered = saved.filter(row => `${row.number} ${row.bill.clientName}`.toLowerCase().includes(search.toLowerCase()) && (!from || row.bill.date >= from) && (!to || row.bill.date <= to) && (!statusFilter || paymentStatus(row.bill) === statusFilter))
 
@@ -153,7 +156,7 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
     <div className="flex flex-wrap items-center justify-between gap-2"><div><strong>{record?.number || 'New Without GST Bill'}</strong><p className="text-xs text-gray-500">{issued ? `Issued · revision ${record.revision}` : 'Draft'}{dirty && ' · unsaved changes'}</p></div><button type="button" disabled={saving || Boolean(pending)} onClick={() => replaceWorking(null)} className={buttonClass}>New bill</button></div>
     {preview ? <>
       <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setPreview(false); setHistorical(null) }} className={buttonClass}>Back to bill</button><button type="button" onClick={() => window.print()} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white">Print / Save as PDF</button></div>
-      {historical && <p className="text-xs text-orange-700">Historical snapshot · {historical.timestamp} · {historical.actor}</p>}
+      {printSnapshot && <p className="text-xs text-orange-700">{historical ? 'Historical snapshot' : 'Original issued snapshot'} · {printSnapshot.timestamp} · {printSnapshot.actor}</p>}
       <p className="text-xs text-gray-500">On your phone, open the ERP in Safari or Chrome if the print menu does not appear.</p>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-slate-200 p-2"><div style={{ width: '210mm', minHeight: '297mm', margin: '0 auto' }}>{billDocument}</div></div>
       {active && <BillPrintPage pageCss={WITHOUT_GST_PAGE_CSS} title={`${record?.number || 'NGST Draft'}${historical ? ` - Revision ${historical.revision}` : ''}`}>{billDocument}</BillPrintPage>}
@@ -181,6 +184,21 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
           </div>)}
           <button type="button" onClick={() => addDelivery()} className={`${buttonClass} w-full`}>+ Add delivery</button>
         </section>
+        <section className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
+          <h2 className="text-sm font-bold text-gray-700">Previous Outstanding / Old Balance</h2>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(previous)} onChange={e => change({ previousOutstanding: e.target.checked ? { amount: '', reference: '', remarks: '' } : undefined })} />Include Previous Outstanding</label>
+          {previous && <>
+            <p className="text-xs text-gray-500">Manually entered balance brought forward for display on this bill.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Previous outstanding amount (₹)" inputMode="decimal" maxLength={30} value={previous.amount} onChange={amount => change({ previousOutstanding: { ...previous, amount } })} />
+              <Field label="Previous bill/reference number (optional)" maxLength={150} value={previous.reference} onChange={reference => change({ previousOutstanding: { ...previous, reference } })} />
+            </div>
+            <div>
+              <label htmlFor="ngst-previous-remarks" className="block text-xs font-semibold text-gray-500">Description/remarks (optional)</label>
+              <textarea id="ngst-previous-remarks" rows={2} maxLength={500} className={`${inputClass} mt-1`} value={previous.remarks} onChange={e => change({ previousOutstanding: { ...previous, remarks: e.target.value } })} />
+            </div>
+          </>}
+        </section>
         <section className="rounded-2xl bg-white p-4"><label className="block text-xs font-semibold text-gray-500">Bill notes<textarea rows={3} className={`${inputClass} mt-1`} value={bill.notes} onChange={e => change({ notes: e.target.value })} /></label></section>
       </fieldset>
       {issued && !settling && <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2"><p className="text-xs text-gray-600">This issued snapshot is preserved. Start a revision to change customer or deliveries.</p><Field label="Correction reason" value={reason} onChange={setReason} /><div className="flex flex-wrap gap-2"><button type="button" disabled={disabled || !schemaReady} onClick={() => save('REVISE')} className={buttonClass}>Start revision</button><button type="button" disabled={disabled} onClick={() => { setSettling(true); setReason('') }} className={buttonClass}>Record / correct payments</button></div></div>}
@@ -194,7 +212,14 @@ export default function WithoutGstBilling({ active, clients, config, accessToken
       </fieldset>
       {settling && <div className="space-y-2"><Field label="Settlement / correction reason" value={reason} onChange={setReason} /><button type="button" disabled={disabled || !schemaReady} onClick={() => save('SETTLE')} className={buttonClass}>Save settlement update</button><button type="button" disabled={disabled} onClick={() => { if (!dirty || window.confirm('Discard unsaved payment changes?')) { setBill(record.bill); setSettling(false) } }} className={`${buttonClass} ml-2`}>Cancel</button></div>}
       {validation && <p role="alert" className="text-xs text-red-700">{validation}</p>}
-      <section className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-2 text-sm"><div className="flex justify-between gap-3"><span>Deliveries</span><strong>{summary.count}</strong></div><div className="flex justify-between gap-3"><span>Quantity by unit</span><strong className="text-right">{quantitySummary(summary.quantities)}</strong></div>{[['Grand total', summary.total], ['Payments allocated', summary.payments], ['Deductible freight', summary.freight], ['Outstanding balance', summary.outstanding]].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><span>{label}</span><strong>{money(value)}</strong></div>)}{summary.credit > 0 && <div className="flex justify-between gap-3 text-orange-700"><span>Credit / overpayment</span><strong>{money(summary.credit)}</strong></div>}{validation && <p className="text-xs text-red-700">Totals are provisional until the validation errors are fixed.</p>}</section>
+      <section className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-2 text-sm"><div className="flex justify-between gap-3"><span>Deliveries</span><strong>{summary.count}</strong></div><div className="flex justify-between gap-3"><span>Quantity by unit</span><strong className="text-right">{quantitySummary(summary.quantities)}</strong></div>{[['Grand total', summary.total], ['Payments allocated', summary.payments], ['Deductible freight', summary.freight], ['Outstanding balance', summary.outstanding]].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><span>{label}</span><strong>{money(value)}</strong></div>)}{summary.credit > 0 && <div className="flex justify-between gap-3 text-orange-700"><span>Credit / overpayment</span><strong>{money(summary.credit)}</strong></div>}{broughtForward && <>
+        <div className="flex justify-between gap-3"><span>Previous Outstanding (manually entered)</span><strong>{money(broughtForward.previousPaise)}</strong></div>
+        <div className="flex justify-between gap-3 border-t border-green-200 pt-2 text-base font-bold"><span>Total Payable</span><strong>{money(broughtForward.payablePaise)}</strong></div>
+        {broughtForward.remainingPaise !== broughtForward.payablePaise && <>
+          <p className="text-xs text-gray-600">Total Payable is before current bill payments and adjustments.</p>
+          <div className="flex justify-between gap-3"><span>Remaining payable after current bill payments and adjustments</span><strong>{money(broughtForward.remainingPaise)}</strong></div>
+        </>}
+      </>}{validation && <p className="text-xs text-red-700">Totals are provisional until the validation errors are fixed.</p>}</section>
       <div className="flex flex-wrap gap-2"><button type="button" disabled={disabled || settling} onClick={showPreview} className={buttonClass}>Preview bill</button>{!issued && <><button type="button" disabled={disabled || !schemaReady} onClick={() => save('SAVE')} className={buttonClass}>{saving ? 'Saving…' : 'Save draft'}</button><button type="button" disabled={disabled || !schemaReady} onClick={() => save('FINALIZE')} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">Finalize bill</button></>}</div>
     </>}
     {record?.history && <details className="rounded-xl border border-gray-200 bg-white p-3"><summary className="cursor-pointer text-sm font-bold">Revision & settlement history ({record.history.length})</summary>{record.history.map(entry => <div key={entry.version} className="border-t border-gray-100 py-2 text-xs"><strong>{entry.action} · {entry.status} · Revision {entry.revision}</strong><p>{entry.actor} · {entry.timestamp}</p>{entry.reason && <p>{entry.reason}</p>}<button type="button" disabled={saving || Boolean(pending)} onClick={() => { setHistorical(entry); setPreview(true) }} className={`${buttonClass} mt-1`}>View snapshot</button></div>)}</details>}
